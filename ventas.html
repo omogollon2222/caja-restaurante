@@ -2,7 +2,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js"></script>
+<script src="backend.js?v=8"></script>
+<script src="comun.js?v=8"></script>
 </head><body>
 <title>Ventas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -293,7 +294,7 @@ textarea.inp{width:100%;min-height:140px;font-family:var(--mono);font-size:12px}
         <div class="row" style="justify-content:space-between"><h2>Cuenta actual</h2><button class="btn sm" id="clearT">Vaciar</button></div>
         <div class="tlines" id="tlines"></div>
         <div class="total"><span class="lbl">Total</span><b id="ttotal">$0.00</b></div>
-        <input class="inp" id="mesa" placeholder="Mesa o cliente (opcional)">
+        <div class="row" style="flex-wrap:nowrap"><button class="btn" id="btnCli" type="button" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis">👤 Cliente (opcional)</button><input class="inp" id="mesa" placeholder="Mesa / referencia" style="flex:1"></div>
         <div class="seg" id="pago">
           <button aria-pressed="true" data-p="Efectivo">Efectivo</button>
           <button aria-pressed="false" data-p="Transferencia">Transferencia</button>
@@ -315,6 +316,7 @@ textarea.inp{width:100%;min-height:140px;font-family:var(--mono);font-size:12px}
       <button class="btn" id="btnImport">Cargar inventario (CSV)</button>
       <button class="btn" id="btnExpInv">Descargar inventario</button>
       <button class="btn" id="btnExpSales2">Descargar ventas</button>
+      <button class="btn" id="btnInvDrive">Guardar en Drive</button>
       <input type="file" id="fileCsv" accept=".csv,text/csv,.txt" hidden>
     </div>
     <div class="tbl-wrap">
@@ -421,6 +423,7 @@ const S = {
   prod: "",
   mode: "loading",     // loading | db | local
   loadedP: false, loadedS: false,
+  cli: null, clients: {}, ctx: null,
 };
 
 /* ---------------- store (db or local fallback) ---------------- */
@@ -471,6 +474,8 @@ async function boot(){
     S.loadedP = S.loadedS = true; setConn(); renderAll(); return;
   }
   db = api; S.mode = "db"; setConn();
+  try { S.ctx = await window.App.ctx(); } catch {}
+  db.collection("clients").onSnapshot(snap => { const m = {}; snap.docs.forEach(d => m[d.id] = d.data()); S.clients = m; }, () => {});
   db.collection("products").onSnapshot(snap => {
     const m = {}; snap.docs.forEach(d => { const v = d.data(); if (v) m[d.id] = v; });
     S.products = m; S.loadedP = true; renderAll(); maybeRebase(snap.metadata);
@@ -577,7 +582,17 @@ $("#cobrar").onclick = async () => {
   if (!S.ticket.length) return;
   const items = S.ticket.map(l => { const p = S.products[l.code] || {}; return {c:l.code, n:p.name||l.code, k:p.cat||"", q:l.q, p:Number(p.price)||0}; });
   const total = Math.round(items.reduce((a,i) => a + i.q*i.p, 0)*100)/100;
-  const sale = {id: rid(), ts: Date.now(), items, total, pago: S.pago, mesa: $("#mesa").value.trim()};
+  const sale = {id: rid(), ts: Date.now(), items, total, pago: S.pago, mesa: $("#mesa").value.trim(), cli: S.cli || null};
+  if (S.ctx) sale.mes = {uid: S.ctx.uid, n: S.ctx.nombre};
+  // Los platos a la carta se avisan a cocina aunque la venta sea directa (mostrador).
+  const coc = items.filter(i => i.k === "Comida");
+  if (coc.length && db) {
+    const oid = rid(), r = "r" + rid(), now = sale.ts, its = {};
+    items.forEach(i => { its[rid()] = {...i, nota: "", r, t: now, por: S.ctx ? S.ctx.nombre : ""}; });
+    sale.ord = oid;
+    db.doc("orders/" + oid).set({date: todayKey(), tipo: "mostrador", mesa: sale.mesa || (S.cli ? S.cli.n : ""), pax: 0, cli: S.cli || null, mes: sale.mes || null,
+      est: "cerrada", tAbre: now, tCierre: now, pago: S.pago, total, items: its, rondas: {[r]: {n: 1, t: now, coc: true, est: "pend", mes: S.ctx ? S.ctx.nombre : ""}}, coc: true}).catch(() => {});
+  }
   const date = todayKey(), id = date + "_" + deviceId;
   const btn = $("#cobrar"); btn.disabled = true;
   try {
@@ -586,7 +601,7 @@ $("#cobrar").onclick = async () => {
       const body = {date, device: deviceId, sales: [...(cur.sales||[]), sale]};
       await store.setSalesDoc(id, body);
     });
-    S.ticket = []; $("#mesa").value = ""; renderTicket(); renderAll();
+    S.ticket = []; $("#mesa").value = ""; S.cli = null; renderCli(); renderTicket(); renderAll();
     toast("Venta guardada · " + money(total));
   } catch (err) {
     toast("No se guardó la venta. Revisa la conexión e intenta de nuevo.");
@@ -596,6 +611,8 @@ $("#todayList").addEventListener("click", async e => {
   const b = e.target.closest("button[data-void]"); if (!b) return;
   if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "¿Anular?"; b.classList.add("danger"); setTimeout(() => { if (b.isConnected) { b.dataset.armed = ""; b.textContent = "Anular"; b.classList.remove("danger"); } }, 3500); return; }
   const [docId, saleId] = b.dataset.void.split("|");
+  const anulada = (S.salesDocs[docId] && (S.salesDocs[docId].sales||[]).find(x => x.id === saleId)) || {};
+  if (anulada.ord && db) db.doc("orders/" + anulada.ord).update({est: "anulada", coc: false, anuladaPor: S.ctx ? S.ctx.nombre : ""}).catch(() => {});
   await chain("sale-append", async () => {
     const doc = S.salesDocs[docId]; if (!doc) return;
     await store.setSalesDoc(docId, {...doc, sales: doc.sales.filter(s => s.id !== saleId)});
@@ -603,6 +620,40 @@ $("#todayList").addEventListener("click", async e => {
   renderAll(); toast("Venta anulada");
 });
 
+function renderCli(){ $("#btnCli").textContent = S.cli ? "👤 " + S.cli.n : "👤 Cliente (opcional)"; }
+$("#btnCli").onclick = () => {
+  sheet(`<h2>Cliente</h2><input class="inp" id="cB" placeholder="Buscar por cédula, nombre o celular" autocomplete="off"><div id="cR" style="max-height:240px;overflow:auto"></div>
+    <details id="cNv"><summary style="font-weight:600;cursor:pointer;padding:6px 0">+ Registrar cliente nuevo</summary>
+    <form class="fgrid" id="cF" style="margin-top:8px"><label class="field" style="grid-column:1/-1"><span>Nombre y apellido</span><input class="inp" id="cN"></label>
+    <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="cC" inputmode="numeric"></label><label class="field"><span>Celular</span><input class="inp mono" id="cT" inputmode="tel" placeholder="09…"></label>
+    <p class="scan-hint err" id="cE" style="grid-column:1/-1;margin:0"></p><div class="acts" style="grid-column:1/-1"><button class="btn pri">Guardar y usar</button></div></form></details>
+    <div class="acts">${S.cli ? '<button class="btn danger" id="cQ" style="margin-right:auto">Quitar cliente</button>' : ""}<button class="btn" id="cX">Cerrar</button></div>`, (el, close) => {
+    const pinta = () => { const q = el.querySelector("#cB").value.trim().toLowerCase();
+      const r = Object.values(S.clients).filter(c => !q || c.ced.toLowerCase().includes(q) || (c.n||"").toLowerCase().includes(q) || (c.cel||"").includes(q)).slice(0, 30);
+      el.querySelector("#cR").innerHTML = r.length ? r.map(c => `<button class="btn" style="width:100%;text-align:left;margin-bottom:6px" data-ced="${esc(c.ced)}"><b>${esc(c.n)}</b> <span class="muted mono">${esc(c.ced)}</span></button>`).join("") : `<p class="muted" style="font-size:13px">${q ? "No se encontró. Regístralo abajo." : "Aún no hay clientes."}</p>`;
+      if (/^\d{6,}$/.test(q) && !r.length) { el.querySelector("#cNv").open = true; el.querySelector("#cC").value = q; } };
+    el.querySelector("#cB").oninput = pinta; pinta(); el.querySelector("#cB").focus();
+    el.querySelector("#cR").onclick = e => { const b = e.target.closest("[data-ced]"); if (!b) return; const c = S.clients[b.dataset.ced]; S.cli = {ced: c.ced, n: c.n}; renderCli(); close(); };
+    el.querySelector("#cX").onclick = close;
+    const q = el.querySelector("#cQ"); if (q) q.onclick = () => { S.cli = null; renderCli(); close(); };
+    el.querySelector("#cF").onsubmit = e => { e.preventDefault();
+      const n = el.querySelector("#cN").value.trim(), ced = U.limpiaCed(el.querySelector("#cC").value), cel = U.limpiaCel(el.querySelector("#cT").value);
+      const er = t => el.querySelector("#cE").textContent = t;
+      if (!n) return er("Escribe el nombre."); if (ced.length < 6) return er("Escribe la cédula, RUC o pasaporte.");
+      if (/^\d{10}$/.test(ced) && !U.cedulaValida(ced) && el.querySelector("#cE").dataset.ok !== ced) { el.querySelector("#cE").dataset.ok = ced; return er("La cédula no parece válida. Revisa o toca Guardar otra vez."); }
+      if (cel && !/^0\d{9}$/.test(cel)) return er("El celular debe tener 10 dígitos.");
+      const c = {ced, n, cel, alta: (S.clients[ced] && S.clients[ced].alta) || Date.now(), por: S.ctx ? S.ctx.nombre : ""};
+      S.clients[ced] = c; if (db) db.doc("clients/" + ced).set(c, {merge: true}).catch(() => {});
+      S.cli = {ced, n}; renderCli(); close(); toast("Cliente registrado"); };
+  });
+};
+$("#btnInvDrive").onclick = async () => {
+  if (!db) { toast("Conéctate a internet para guardar en Drive."); return; }
+  const b = $("#btnInvDrive"); b.disabled = true; b.textContent = "Guardando…";
+  try { const r = await U.drive.enviar(db, {sub: "Inventario", nombre: "Inventario " + todayKey(), tipo: "hoja", filas: U.filasInventario(S.products, allSales())}); toast(r.sinConfirmar ? "Inventario enviado a Drive" : "Inventario guardado en Drive ✔"); }
+  catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = "Guardar en Drive";
+};
 function renderGrid(){
   const cats = ["Todas", ...CATS];
   $("#catChips").innerHTML = cats.map(c => `<button class="chip" data-cat="${c}" aria-pressed="${S.cat===c}">${c==="Todas"?"Todo":esc(catName(c))}</button>`).join("");
@@ -633,7 +684,7 @@ function renderToday(){
   $("#todaySum").textContent = list.length ? list.length + " ventas · " + money(sum) : "";
   $("#todayList").innerHTML = list.length ? list.slice(0,40).map(s => `<div class="sale">
     <span class="h">${hhmm(s.ts)}</span>
-    <span class="d" title="${esc(s.items.map(i => i.q+"× "+i.n).join(", "))}">${esc(s.items.map(i => i.q+"× "+i.n).join(", "))}${s.mesa?` <span class="muted">· ${esc(s.mesa)}</span>`:""}</span>
+    <span class="d" title="${esc(s.items.map(i => i.q+"× "+i.n).join(", "))}">${esc(s.items.map(i => i.q+"× "+i.n).join(", "))}${s.mesa?` <span class="muted">· ${esc(s.mesa)}</span>`:""}${s.cli?` <span class="muted">· 👤 ${esc(s.cli.n)}</span>`:""}</span>
     <span class="m">${money(s.total)}</span>
     <button class="btn sm" data-void="${esc(s._doc)}|${esc(s.id)}">Anular</button></div>`).join("")
     : `<div class="empty">Todavía no hay ventas hoy.</div>`;
@@ -842,10 +893,10 @@ function exportInventory(){
 }
 function exportSales(useFilter){
   const list = useFilter ? filteredSales() : allSales();
-  const rows = [["fecha","hora","ticket","codigo","producto","categoria","cantidad","precio","subtotal","pago","mesa"]];
-  list.sort((a,b) => a.ts - b.ts).forEach(s => s.items.forEach(i => rows.push([s._date, hhmm(s.ts), s.id, i.c, i.n, catName(i.k), i.q, i.p.toFixed(2), (i.q*i.p).toFixed(2), s.pago||"", s.mesa||""])));
+  const rows = [["fecha","hora","ticket","codigo","producto","categoria","cantidad","precio","subtotal","pago","mesa","mesero","cliente","cedula"]];
+  list.sort((a,b) => a.ts - b.ts).forEach(s => s.items.forEach(i => rows.push([s._date, hhmm(s.ts), s.id, i.c, i.n, catName(i.k), i.q, i.p.toFixed(2), (i.q*i.p).toFixed(2), s.pago||"", s.mesa||"", s.mes?s.mes.n:"", s.cli?s.cli.n:"", s.cli?s.cli.ced:""])));
   const tag = useFilter ? rangeLabel().replace(/\s+/g,"-").toLowerCase() : "todo";
-  offer("ventas-restaurante-campestre-" + tag + ".csv", rows.map(r => r.map(csvCell).join(",")).join("\n"));
+  offer("ventas-" + tag + ".csv", rows.map(r => r.map(csvCell).join(",")).join("\n"));
 }
 
 /* ---------------- ANALISIS ---------------- */

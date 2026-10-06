@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="estilo.css?v=8">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="backend.js?v=8"></script>
+<script src="comun.js?v=8"></script>
+<style>
+.mbars{display:flex;align-items:flex-end;gap:4px;height:120px;border-bottom:1px solid var(--line)}
+.mbars div{flex:1;background:var(--accent);border-radius:4px 4px 0 0;min-height:0}
+.mbars div.cero{background:var(--surface-2);height:3px!important}
+.mxl{display:flex;gap:4px;margin-top:4px}.mxl span{flex:1;text-align:center;font-size:11px;color:var(--ink-3)}
+tr[data-ced]{cursor:pointer}
+tr[data-ced]:hover td{background:var(--surface-2)}
+</style>
+</head>
+<body>
+<main>
+  <div class="pagehead">
+    <h1>Clientes</h1>
+    <input type="month" class="inp" id="mes" style="width:auto">
+    <button class="btn" id="btnCsv">Descargar CSV</button>
+    <button class="btn pri" id="btnNuevo">+ Cliente</button>
+  </div>
+  <div class="kpis" id="kpis" style="margin-bottom:14px"></div>
+  <div class="grid2">
+    <div class="card"><div class="chead"><div><h2>Mejores clientes del mes</h2><p id="topSub"></p></div></div><div class="tbl"><table id="top"></table></div></div>
+    <div class="card"><div class="chead"><div><h2>Clientes registrados por mes</h2><p>Visitas de clientes con cédula, últimos 12 meses</p></div></div><div id="graf"></div></div>
+    <div class="card wide">
+      <div class="chead"><h2>Base de clientes</h2><input class="inp" id="bus" placeholder="Buscar por nombre, cédula o celular" style="max-width:320px"></div>
+      <div class="tbl"><table><thead><tr><th>Cliente</th><th>Cédula</th><th>Celular</th><th class="r">Visitas (12 m)</th><th class="r">Gastado (12 m)</th><th class="r">Ticket prom.</th><th>Última visita</th></tr></thead><tbody id="lista"></tbody></table></div>
+    </div>
+  </div>
+</main>
+<script>
+(async () => {
+"use strict";
+const {$, esc, money, money0, todayKey, addDays, MESES} = U;
+const ctx = await App.ctx(); const api = await App.use("db"); if (!ctx || !api) return;
+const S = {clients: {}, ventas: [], mes: todayKey().slice(0, 7)};
+$("#mes").value = S.mes;
+$("#mes").onchange = e => { S.mes = e.target.value || todayKey().slice(0, 7); render(); };
+api.collection("clients").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.clients = m; render(); }, e => U.toast(e.message));
+api.collection("sales").where("date", ">=", addDays(todayKey(), -400)).onSnapshot(s => { S.ventas = U.ventasDe(s.docs); render(); });
+
+const meses12 = () => { const out = []; const [y, m] = S.mes.split("-").map(Number); for (let i = 11; i >= 0; i--) { const d = new Date(y, m - 1 - i, 1); out.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); } return out; };
+function stats(){
+  const por = {}; const desde = meses12()[0];
+  S.ventas.forEach(v => { if (!v.cli || !v.cli.ced) return; const mm = v._date.slice(0, 7); const c = por[v.cli.ced] = por[v.cli.ced] || {vis: 0, tot: 0, ult: "", mes: {}, prod: {}};
+    if (v._date > c.ult) c.ult = v._date;
+    c.mes[mm] = c.mes[mm] || {vis: 0, tot: 0}; c.mes[mm].vis++; c.mes[mm].tot += v.total;
+    if (mm >= desde && mm <= S.mes) { c.vis++; c.tot += v.total; }
+    v.items.forEach(i => { c.prod[i.n] = (c.prod[i.n] || 0) + i.q; }); });
+  return por;
+}
+function render(){
+  const st = stats(); const cl = Object.values(S.clients);
+  const delMes = Object.entries(st).filter(([, c]) => c.mes[S.mes]);
+  const nuevos = cl.filter(c => c.alta && U.dkey(c.alta).slice(0, 7) === S.mes).length;
+  const totMes = delMes.reduce((s, [, c]) => s + c.mes[S.mes].tot, 0);
+  const visMes = delMes.reduce((s, [, c]) => s + c.mes[S.mes].vis, 0);
+  const ventasMes = S.ventas.filter(v => v._date.slice(0, 7) === S.mes).reduce((s, v) => s + v.total, 0);
+  $("#kpis").innerHTML = [
+    ["Clientes registrados", cl.length, nuevos + " nuevos en el mes"],
+    ["Vinieron en el mes", delMes.length, visMes + " visitas"],
+    ["Gasto por cliente", delMes.length ? money(totMes / delMes.length) : "—", "promedio del mes"],
+    ["Ventas con cliente", ventasMes ? Math.round(totMes / ventasMes * 100) + "%" : "—", money0(totMes) + " de " + money0(ventasMes)]
+  ].map(([l, v, s]) => `<div class="kpi"><span class="lbl">${l}</span><b>${v}</b><div class="sub">${s}</div></div>`).join("");
+  const [yy, mm] = S.mes.split("-").map(Number);
+  $("#topSub").textContent = MESES[mm - 1] + " " + yy;
+  const top = delMes.sort((a, b) => b[1].mes[S.mes].tot - a[1].mes[S.mes].tot).slice(0, 10);
+  $("#top").innerHTML = top.length ? `<thead><tr><th>Cliente</th><th class="r">Visitas</th><th class="r">Gastó</th></tr></thead><tbody>${top.map(([ced, c]) => `<tr data-ced="${esc(ced)}"><td>${esc((S.clients[ced] || {}).n || ced)}</td><td class="r mono">${c.mes[S.mes].vis}</td><td class="r mono">${money(c.mes[S.mes].tot)}</td></tr>`).join("")}</tbody>` : `<tr><td class="empty">Ningún cliente registrado compró en este mes.</td></tr>`;
+  const ms = meses12(); const porMes = ms.map(m => Object.values(st).reduce((s, c) => s + (c.mes[m] ? c.mes[m].vis : 0), 0)); const mx = Math.max(1, ...porMes);
+  $("#graf").innerHTML = `<div class="mbars">${porMes.map((v, i) => `<div class="${v ? "" : "cero"}" style="height:${v / mx * 100}%" title="${ms[i]}: ${v} visitas"></div>`).join("")}</div><div class="mxl">${ms.map(m => `<span>${MESES[+m.slice(5) - 1]}</span>`).join("")}</div>`;
+  const q = $("#bus").value.trim().toLowerCase();
+  const lista = cl.filter(c => !q || c.ced.toLowerCase().includes(q) || (c.n || "").toLowerCase().includes(q) || (c.cel || "").includes(q)).sort((a, b) => ((st[b.ced] || {}).tot || 0) - ((st[a.ced] || {}).tot || 0) || (a.n || "").localeCompare(b.n || ""));
+  $("#lista").innerHTML = lista.length ? lista.map(c => { const s = st[c.ced] || {vis: 0, tot: 0, ult: ""}; return `<tr data-ced="${esc(c.ced)}"><td><b style="font-weight:600">${esc(c.n)}</b></td><td class="mono">${esc(c.ced)}</td><td class="mono">${esc(c.cel || "")}</td><td class="r mono">${s.vis}</td><td class="r mono">${money(s.tot)}</td><td class="r mono">${s.vis ? money(s.tot / s.vis) : "—"}</td><td>${s.ult ? U.fmtDay(s.ult) : '<span class="muted">—</span>'}</td></tr>`; }).join("")
+    : `<tr><td colspan="7" class="empty">${cl.length ? "Ningún cliente coincide." : "Aún no hay clientes. Regístralos al abrir una cuenta o con «+ Cliente»."}</td></tr>`;
+}
+$("#bus").oninput = render;
+document.addEventListener("click", e => { const t = e.target.closest("tr[data-ced]"); if (t) ficha(t.dataset.ced); });
+$("#btnNuevo").onclick = () => ficha(null);
+function ficha(ced){
+  const c = ced ? S.clients[ced] || {ced, n: ced} : null; const s = ced ? stats()[ced] : null;
+  const ms = meses12();
+  const fav = s ? Object.entries(s.prod).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
+  U.sheet(`<h2>${c ? esc(c.n) : "Nuevo cliente"}</h2>
+    <form class="fgrid" id="f">
+      <label class="field full"><span>Nombre y apellido</span><input class="inp" id="fN" value="${esc(c ? c.n : "")}" required></label>
+      <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="fC" value="${esc(c ? c.ced : "")}" ${c ? "disabled" : ""} inputmode="numeric"></label>
+      <label class="field"><span>Celular</span><input class="inp mono" id="fT" value="${esc(c ? c.cel || "" : "")}" inputmode="tel" placeholder="09…"></label>
+      <p class="err full" id="fE"></p>
+    </form>
+    ${s ? `<div><div class="lbl" style="margin-bottom:6px">Comportamiento mensual</div><div class="tbl"><table><thead><tr><th>Mes</th><th class="r">Visitas</th><th class="r">Gastó</th><th class="r">Ticket prom.</th></tr></thead><tbody>${ms.slice().reverse().filter(m => s.mes[m]).map(m => `<tr><td>${MESES[+m.slice(5) - 1]} ${m.slice(0, 4)}</td><td class="r mono">${s.mes[m].vis}</td><td class="r mono">${money(s.mes[m].tot)}</td><td class="r mono">${money(s.mes[m].tot / s.mes[m].vis)}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Sin compras en los últimos 12 meses.</td></tr>`}</tbody></table></div></div>
+      <p class="small" style="margin:0"><b>Le gusta:</b> ${fav.map(([n, q]) => esc(n) + " (" + q + ")").join(", ") || "—"}<br><b>Última visita:</b> ${s.ult ? U.longDay(s.ult) : "—"}</p>` : c ? `<p class="muted small">Todavía no tiene compras registradas.</p>` : ""}
+    <div class="acts">${c && c.cel ? `<a class="btn" style="margin-right:auto;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${U.waCel(c.cel)}">WhatsApp</a>` : ""}${c && ctx.rol === "admin" ? '<button class="btn danger" id="fDel">Eliminar</button>' : ""}<button class="btn" id="fX">Cerrar</button><button class="btn pri" id="fOk">Guardar</button></div>`, (el, close) => {
+    el.querySelector("#fX").onclick = close;
+    const del = el.querySelector("#fDel");
+    if (del) del.onclick = () => { if (!U.confirmar(del, "¿Eliminar cliente?")) return; api.doc("clients/" + c.ced).delete(); close(); U.toast("Cliente eliminado"); };
+    el.querySelector("#fOk").onclick = () => {
+      const n = el.querySelector("#fN").value.trim(), cd = c ? c.ced : U.limpiaCed(el.querySelector("#fC").value), cel = U.limpiaCel(el.querySelector("#fT").value);
+      const err = t => el.querySelector("#fE").textContent = t;
+      if (!n) return err("Escribe el nombre.");
+      if (cd.length < 6) return err("Escribe la cédula, RUC o pasaporte.");
+      if (!c && S.clients[cd]) return err("Ya existe un cliente con esa cédula: " + S.clients[cd].n);
+      if (!c && /^\d{10}$/.test(cd) && !U.cedulaValida(cd) && el.querySelector("#fE").dataset.ok !== cd) { el.querySelector("#fE").dataset.ok = cd; return err("La cédula no parece válida. Revisa o toca Guardar otra vez para registrarla así."); }
+      if (cel && !/^0\d{9}$/.test(cel)) return err("El celular debe tener 10 dígitos, ej. 0991234567.");
+      api.doc("clients/" + cd).set({ced: cd, n, cel, alta: (c && c.alta) || Date.now(), por: (c && c.por) || ctx.nombre}, {merge: true}).catch(er => U.toast(er.message));
+      close(); U.toast(c ? "Cliente actualizado" : "Cliente registrado");
+    };
+  }, true);
+}
+$("#btnCsv").onclick = async () => {
+  const st = stats(); const ms = meses12();
+  const rows = [["cedula", "nombre", "celular", "registrado", "visitas_12m", "gastado_12m", "ultima_visita", ...ms.map(m => "gasto_" + m)]];
+  Object.values(S.clients).forEach(c => { const s = st[c.ced] || {vis: 0, tot: 0, ult: "", mes: {}}; rows.push([c.ced, c.n, c.cel || "", c.alta ? U.dkey(c.alta) : "", s.vis, s.tot.toFixed(2), s.ult, ...ms.map(m => s.mes[m] ? s.mes[m].tot.toFixed(2) : "0")]); });
+  const csv = "﻿" + rows.map(r => r.map(v => /[",;\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v).join(",")).join("\n");
+  const d = await App.use("downloads"); d.save({filename: "clientes-" + S.mes + ".csv", data: csv});
+};
+render();
+})();
+</script>
+</body>
+</html>

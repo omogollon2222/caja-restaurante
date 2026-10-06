@@ -1,9 +1,11 @@
-// Copia de las reglas publicadas en Firebase (Firestore > Reglas), 27-sep-2026.
+// Copia de las reglas publicadas en Firebase (Firestore > Reglas). Actualizado 5-oct-2026.
 // Si cambias las reglas en la consola, actualiza también este archivo.
 //
-// - Cada restaurante solo ve sus propios datos (restaurantes/{uid}).
-// - Nadie puede editar su ficha (nombre, vence): solo el administrador desde la consola.
-// - Con la suscripción vencida puede ver sus datos, pero no registrar ni borrar nada.
+// - Cada restaurante solo ve sus propios datos (restaurantes/{uidDueño}).
+// - El personal (hasta 5 meseros, cocina, caja y un administrador) entra con su propia cuenta,
+//   enlazada en miembros/{uidPersona}. Solo el dueño crea o quita personal.
+// - Nadie puede editar la ficha del restaurante (nombre, vence, logo): solo el administrador desde la consola.
+// - Con la suscripción vencida se pueden ver los datos, pero no registrar ni borrar nada.
 // - Todo lo que no está aquí queda cerrado.
 rules_version = '2';
 service cloud.firestore {
@@ -16,14 +18,36 @@ service cloud.firestore {
     function esDueno(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
+    function esPersonal(uid) {
+      let ruta = /databases/$(database)/documents/miembros/$(request.auth.uid);
+      return request.auth != null && exists(ruta)
+        && get(ruta).data.rest == uid
+        && get(/databases/$(database)/documents/restaurantes/$(uid)/staff/$(get(ruta).data.slot)).data.uid == request.auth.uid;
+    }
+    function accede(uid) {
+      return esDueno(uid) || esPersonal(uid);
+    }
+
+    match /miembros/{persona} {
+      allow read: if request.auth != null && (request.auth.uid == persona || resource.data.rest == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.rest == request.auth.uid
+        && exists(/databases/$(database)/documents/restaurantes/$(request.auth.uid));
+      allow update: if request.auth != null && resource.data.rest == request.auth.uid && request.resource.data.rest == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.rest == request.auth.uid;
+    }
 
     match /restaurantes/{uid} {
-      allow read: if esDueno(uid);
+      allow read: if accede(uid);
       allow write: if false;
 
       match /{coleccion}/{docId} {
-        allow read: if esDueno(uid) && coleccion in ['products', 'sales', 'days'];
-        allow write: if esDueno(uid) && coleccion in ['products', 'sales', 'days'] && activo(uid);
+        allow read: if accede(uid)
+          && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'staff', 'config'];
+        allow write: if activo(uid) && (
+          (esDueno(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'config'])
+          || (esDueno(uid) && coleccion == 'staff' && docId in ['admin', 'm1', 'm2', 'm3', 'm4', 'm5', 'cocina', 'caja'])
+          || (esPersonal(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients'])
+        );
       }
     }
   }

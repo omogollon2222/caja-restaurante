@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cocina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="estilo.css?v=8">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="backend.js?v=8"></script>
+<script src="comun.js?v=8"></script>
+<style>
+main{max-width:1500px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;color:var(--ink-2)}
+.stat b{font-family:var(--display);font-size:20px;color:var(--ink);margin-right:4px}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.col h2{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:16px}
+.col h2 span{font-family:var(--mono);font-size:14px;background:var(--surface-2);border-radius:999px;padding:1px 10px}
+.com{background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
+.com.pend{border-color:var(--bad)}
+.com.prep{border-color:var(--warn)}
+.com.listo{border-color:var(--good);opacity:.92}
+.com.tarde{animation:pulso 1.4s infinite}
+@keyframes pulso{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 35%,transparent)}}
+.com-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.com-h .t{font-family:var(--display);font-weight:800;font-size:22px;line-height:1.1}
+.com-h .s{font-size:13px;color:var(--ink-2)}
+.reloj{font-family:var(--mono);font-weight:600;font-size:18px;padding:2px 9px;border-radius:9px;white-space:nowrap}
+.reloj.v{background:var(--good-bg);color:var(--good)}
+.reloj.a{background:var(--warn-bg);color:var(--warn)}
+.reloj.r{background:var(--bad);color:#fff}
+.its{list-style:none;margin:10px 0;padding:0;font-size:18px}
+.its li{padding:5px 0;border-bottom:1px dashed var(--line)}
+.its li:last-child{border-bottom:0}
+.its b{font-family:var(--mono);margin-right:6px}
+.its .nota{display:block;font-size:14px;color:var(--warn);font-weight:700;margin-left:30px}
+.com .btn.big{padding:12px}
+.sonido{display:flex;gap:10px;align-items:center;background:var(--accent-soft);border-radius:12px;padding:10px 12px;margin-bottom:12px;flex-wrap:wrap}
+@media (max-width:980px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div class="sonido" id="sonido"><span class="grow">🔔 <b>Toca para activar el sonido</b> de pedidos nuevos y mantener la pantalla encendida.</span><button class="btn pri" id="btnSonido">Activar sonido</button></div>
+  <div class="pagehead"><h1>Cocina</h1><span class="muted small" id="reloj"></span></div>
+  <div class="stats" id="stats"></div>
+  <div class="cols">
+    <section class="col"><h2>Nuevos <span id="nPend">0</span></h2><div id="cPend"></div></section>
+    <section class="col"><h2>Preparando <span id="nPrep">0</span></h2><div id="cPrep"></div></section>
+    <section class="col"><h2>Listos — esperando mesero <span id="nListo">0</span></h2><div id="cListo"></div></section>
+  </div>
+</main>
+<script>
+(async () => {
+"use strict";
+const {$, esc, dur, hhmm, todayKey} = U;
+const ctx = await App.ctx(); const api = await App.use("db"); if (!ctx || !api) return;
+const S = {act: {}, hoy: {}, meta: 15, vistos: null};
+
+api.doc("config/general").onSnapshot(s => { S.meta = (s.exists && Number(s.data().metaCocina)) || 15; render(); }, () => {});
+api.collection("orders").where("coc", "==", true).onSnapshot(s => {
+  const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.act = m;
+  const nuevos = comandas().filter(c => c.r.est === "pend");
+  const ids = new Set(nuevos.map(c => c.key));
+  if (S.vistos) { const n = nuevos.filter(c => !S.vistos.has(c.key)); if (n.length) U.notificar("Pedido nuevo", n.map(c => U.etiquetaCuenta(c.o)).join(", ")); }
+  S.vistos = new Set([...(S.vistos || []), ...ids]);
+  render();
+}, e => U.toast("No se pudieron leer los pedidos: " + e.message));
+api.collection("orders").where("date", "==", todayKey()).onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.hoy = m; renderStats(); }, () => {});
+
+function comandas(){
+  const out = [];
+  Object.values(S.act).forEach(o => {
+    if (o.est === "anulada") return;
+    U.rondasDe(o).forEach(r => {
+      if (!r.coc || !["pend", "prep", "listo"].includes(r.est)) return;
+      const its = U.itemsDe(o).filter(i => i.r === r.id && U.vaACocina(i.k));
+      if (its.length) out.push({o, r, its, key: o.id + r.id});
+    });
+  });
+  return out.sort((a, b) => a.r.t - b.r.t);
+}
+function reloj(ms){ const m = U.min(ms); return `<span class="reloj ${m < S.meta * 0.66 ? "v" : m < S.meta ? "a" : "r"}">${m} min</span>`; }
+function card(c){
+  const {o, r, its} = c; const ref = r.est === "prep" ? r.ini : r.t;
+  const tarde = r.est !== "listo" && Date.now() - r.t > S.meta * 60000;
+  const btn = r.est === "pend" ? `<button class="btn big warn" data-a="prep" data-k="${o.id}|${r.id}">Empezar a preparar</button>`
+    : r.est === "prep" ? `<button class="btn big pri" data-a="listo" data-k="${o.id}|${r.id}">¡Listo! Avisar al mesero</button>`
+    : `<div class="row"><span class="muted small grow">Listo hace ${dur(Date.now() - r.listo)} · cocina ${dur(r.listo - r.t)}</span><button class="btn sm" data-a="prep" data-k="${o.id}|${r.id}">Deshacer</button>${o.tipo === "mostrador" || o.tipo === "llevar" ? `<button class="btn sm pri" data-a="entr" data-k="${o.id}|${r.id}">Entregado</button>` : ""}</div>`;
+  return `<article class="com ${r.est} ${tarde ? "tarde" : ""}">
+    <div class="com-h"><div><div class="t">${esc(U.etiquetaCuenta(o))}</div><div class="s">Pedido ${r.n} · ${hhmm(r.t)}${o.mes ? " · " + esc(o.mes.n) : r.mes ? " · " + esc(r.mes) : ""}</div></div>${r.est === "listo" ? "" : reloj(Date.now() - (r.t))}</div>
+    <ul class="its">${its.map(i => `<li><b>${i.q}×</b>${esc(i.n)}${i.nota ? `<span class="nota">📝 ${esc(i.nota)}</span>` : ""}</li>`).join("")}</ul>
+    ${r.est === "prep" ? `<p class="muted small" style="margin:0 0 8px">Preparando desde ${hhmm(ref)} (${dur(Date.now() - ref)})</p>` : ""}
+    ${btn}</article>`;
+}
+function render(){
+  const cs = comandas();
+  [["pend", "#cPend", "#nPend"], ["prep", "#cPrep", "#nPrep"], ["listo", "#cListo", "#nListo"]].forEach(([e, sel, n]) => {
+    const l = cs.filter(c => c.r.est === e); $(n).textContent = l.length;
+    $(sel).innerHTML = l.map(card).join("") || `<div class="empty">${e === "pend" ? "Sin pedidos nuevos 👌" : "—"}</div>`;
+  });
+  $("#reloj").textContent = "Meta: " + S.meta + " min por pedido · " + new Date().toLocaleTimeString("es", {hour: "2-digit", minute: "2-digit"});
+  renderStats();
+}
+function renderStats(){
+  const esp = [], prep = []; let tarde = 0, n = 0;
+  Object.values(S.hoy).forEach(o => U.rondasDe(o).forEach(r => { if (!r.coc || !r.listo) return; n++; esp.push(r.listo - r.t); if (r.ini) prep.push(r.listo - r.ini); if (r.listo - r.t > S.meta * 60000) tarde++; }));
+  const cola = comandas().filter(c => c.r.est !== "listo");
+  $("#stats").innerHTML = [
+    [cola.length, "en cola"],
+    [n, "pedidos listos hoy"],
+    [U.min(U.avg(esp)) ?? "—", "min de espera promedio"],
+    [U.min(U.avg(prep)) ?? "—", "min de preparación promedio"],
+    [tarde, "pasaron de " + S.meta + " min"]
+  ].map(([v, t]) => `<div class="stat"><b>${v}</b>${t}</div>`).join("");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-a]"); if (!b) return;
+  const [oid, r] = b.dataset.k.split("|"); const o = S.act[oid]; if (!o) return;
+  const now = Date.now(); const p = "rondas." + r + ".";
+  const upd = {[p + "est"]: b.dataset.a, [p + "coci"]: ctx.nombre};
+  if (b.dataset.a === "prep") { if (!o.rondas[r].ini) upd[p + "ini"] = now; upd[p + "listo"] = null; }
+  if (b.dataset.a === "listo") upd[p + "listo"] = now;
+  if (b.dataset.a === "entr") { upd[p + "ent"] = now; upd[p + "por"] = ctx.nombre; if (!U.rondasDe(o).some(x => x.id !== r && U.rondaActiva(x))) upd.coc = false; }
+  o.rondas[r] = {...o.rondas[r], est: b.dataset.a, ...(b.dataset.a === "listo" ? {listo: now} : {}), ...(b.dataset.a === "prep" && !o.rondas[r].ini ? {ini: now} : {})};
+  render();
+  api.doc("orders/" + oid).update(upd).catch(er => U.toast("No se guardó: " + er.message));
+});
+$("#btnSonido").onclick = () => { U.activarSonido(); U.beep(1); U.pantallaEncendida(); $("#sonido").hidden = true; };
+document.addEventListener("visibilitychange", () => { if (!document.hidden && $("#sonido").hidden) U.pantallaEncendida(); });
+setInterval(render, 20000);
+render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Administrador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="estilo.css?v=8">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="backend.js?v=8"></script>
+<script src="comun.js?v=8"></script>
+<style>
+.vivo{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
+.vivo i{width:8px;height:8px;border-radius:50%;background:var(--good);animation:lat 2s infinite}
+@keyframes lat{50%{opacity:.3}}
+.tabsA{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.leyenda{display:flex;gap:12px;font-size:12px;color:var(--ink-3);margin-top:8px}
+.leyenda i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.bars2 .bcol{position:relative}
+.bars2 .bcol .g{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:30px;border:2px dashed var(--ink-3);border-bottom:0;border-radius:4px 4px 0 0;opacity:.5}
+.slot{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.slot:last-child{border-bottom:0}
+.slot b{font-family:var(--display)}
+.alerta{color:var(--bad);font-weight:600}
+.pasos{margin:0;padding-left:20px;font-size:14px}
+.pasos li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:13px;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+@media (max-width:560px){.slot{grid-template-columns:1fr auto}.slot .who{grid-column:1/-1;order:3}}
+</style>
+</head>
+<body>
+<main>
+  <div class="pagehead">
+    <h1>Administrador</h1>
+    <span class="vivo" id="vivo"><i></i>En vivo</span>
+  </div>
+  <div class="tabsA" id="tabs">
+    <button class="chip" data-t="resumen" aria-pressed="true">Resumen en vivo</button>
+    <button class="chip" data-t="personal" aria-pressed="false">Personal</button>
+    <button class="chip" data-t="config" aria-pressed="false">Configuración y Drive</button>
+  </div>
+
+  <!-- RESUMEN -->
+  <section id="t-resumen">
+    <p class="muted small" id="diaTxt" style="margin:-6px 0 8px"></p>
+    <div class="row" style="margin-bottom:12px">
+      <input type="date" class="inp grow" id="dia" style="width:auto;max-width:200px">
+      <span class="grow"></span>
+      <button class="btn" id="btnWa">Enviar por WhatsApp</button>
+      <button class="btn pri" id="btnPdf">Resumen PDF</button>
+    </div>
+    <div class="kpis" id="kpis" style="margin-bottom:14px"></div>
+    <div class="grid2">
+      <div class="card wide"><div class="chead"><div><h2>Ventas por hora</h2><p id="horaSub"></p></div></div><div id="horas"></div>
+        <div class="leyenda"><span><i style="background:var(--accent)"></i>Hoy</span><span><i style="border:2px dashed var(--ink-3)"></i>Mismo día semana pasada</span></div></div>
+      <div class="card"><div class="chead"><div><h2>Cuentas abiertas</h2><p id="abSub"></p></div></div><div class="tbl" id="abiertas"></div></div>
+      <div class="card"><div class="chead"><div><h2>Cocina</h2><p id="cocSub"></p></div></div><div id="cocina"></div></div>
+      <div class="card wide"><div class="chead"><div><h2>Meseros</h2><p>Ventas cobradas, tiempos de entrega y mesas que atienden ahora</p></div></div><div class="tbl" id="meseros"></div></div>
+      <div class="card"><div class="chead"><div><h2>Productos más vendidos</h2><p id="topSub"></p></div></div><div class="hbars" id="top"></div></div>
+      <div class="card"><div class="chead"><div><h2>Formas de pago</h2></div></div><div class="hbars" id="pagos"></div>
+        <div class="chead" style="margin-top:16px"><div><h2>Por categoría</h2></div></div><div class="hbars" id="cats"></div></div>
+      <div class="card"><div class="chead"><div><h2>Reponer inventario</h2><p>Productos en stock bajo o agotados</p></div></div><div id="stock"></div></div>
+      <div class="card"><div class="chead"><div><h2>Anulaciones</h2><p>Productos o cuentas anuladas en el día</p></div></div><div id="anul"></div></div>
+    </div>
+  </section>
+
+  <!-- PERSONAL -->
+  <section id="t-personal" hidden>
+    <div class="card">
+      <div class="chead"><div><h2>Cuentas del personal</h2><p>Cada persona entra con su propio correo y contraseña y ve solo su pantalla: los meseros ven <b>Mesas</b>, la cocina ve <b>Cocina</b>, caja ve <b>Mesas, Ventas, Caja y Clientes</b> y el administrador ve todo.</p></div></div>
+      <div id="slots"></div>
+      <p class="muted small" id="persNota"></p>
+    </div>
+  </section>
+
+  <!-- CONFIG -->
+  <section id="t-config" hidden>
+    <div class="grid2">
+      <div class="card">
+        <h2 style="margin-bottom:10px">Restaurante</h2>
+        <form class="fgrid" id="fCfg">
+          <label class="field"><span>Número de mesas</span><input class="inp mono" id="cMesas" inputmode="numeric"></label>
+          <label class="field"><span>Meta de cocina (minutos por pedido)</span><input class="inp mono" id="cMeta" inputmode="numeric"></label>
+          <label class="field full"><span>Tu nombre (como aparece en la app)</span><input class="inp" id="cDueno"></label>
+          <label class="field full"><span>Celular del dueño para recibir el resumen por WhatsApp</span><input class="inp mono" id="cWa" inputmode="tel" placeholder="0991234567"></label>
+          <div class="acts full"><button class="btn pri">Guardar</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:6px">Google Drive</h2>
+        <p class="muted small" style="margin:0 0 10px">La app guarda en tu carpeta de Drive el resumen PDF de cada cierre de caja, el inventario y las ventas. Se conecta una sola vez con un pequeño script de Google.</p>
+        <ol class="pasos">
+          <li>Entra a <b>script.google.com</b> con la cuenta dueña de la carpeta y crea un <b>Proyecto nuevo</b>.</li>
+          <li>Borra lo que aparece y pega el código del botón <b>Copiar código del script</b>. Cambia la clave en la línea <code>CLAVE</code> (inventa una).</li>
+          <li><b>Implementar → Nueva implementación → Aplicación web</b>. Ejecutar como: <b>Yo</b>. Quién tiene acceso: <b>Cualquier usuario</b>. Autoriza los permisos.</li>
+          <li>Copia la <b>URL de la aplicación web</b> y pégala abajo con la misma clave.</li>
+        </ol>
+        <div class="row" style="margin:6px 0 12px"><button class="btn" id="btnScript">Copiar código del script</button></div>
+        <form class="fgrid" id="fDrive">
+          <label class="field full"><span>URL de la aplicación web</span><input class="inp mono" id="dUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+          <label class="field"><span>Clave</span><input class="inp mono" id="dTok"></label>
+          <label class="field"><span>Carpeta</span><input class="inp" id="dCarp" placeholder="Quinta Josaid"></label>
+          <p class="err full" id="dErr"></p>
+          <div class="acts full"><button type="button" class="btn" id="btnProbar">Probar</button><button class="btn pri">Guardar</button></div>
+        </form>
+        <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+          <button class="btn" id="btnInvDrive">Guardar inventario en Drive</button>
+          <button class="btn" id="btnVenDrive">Guardar ventas del mes en Drive</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(async () => {
+"use strict";
+const {$, esc, money, money0, todayKey, addDays, hhmm, dur} = U;
+const ctx = await App.ctx(); const api = await App.use("db"); if (!ctx || !api) return;
+const S = {dia: todayKey(), ventas: [], prev: [], cuentas: {}, abiertas: {}, products: {}, ventas60: [], cierre: null, staff: {}, cfg: {}, drive: null};
+const subs = [];
+const esHoy = () => S.dia === todayKey();
+
+// ---------- pestañas ----------
+$("#tabs").onclick = e => { const b = e.target.closest("[data-t]"); if (!b) return; $("#tabs").querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === b))); ["resumen", "personal", "config"].forEach(t => $("#t-" + t).hidden = t !== b.dataset.t); };
+
+// ---------- datos ----------
+function escuchar(){
+  subs.splice(0).forEach(f => f());
+  subs.push(api.collection("sales").where("date", "==", S.dia).onSnapshot(s => { S.ventas = U.ventasDe(s.docs); render(); }));
+  subs.push(api.collection("sales").where("date", "==", addDays(S.dia, -7)).onSnapshot(s => { S.prev = U.ventasDe(s.docs); render(); }));
+  subs.push(api.collection("orders").where("date", "==", S.dia).onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.cuentas = m; render(); }));
+  subs.push(api.doc("days/" + S.dia).onSnapshot(s => { S.cierre = s.exists ? s.data() : null; render(); }, () => {}));
+}
+api.collection("orders").where("est", "==", "abierta").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.abiertas = m; render(); });
+api.collection("orders").where("coc", "==", true).onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.enCocina = m; render(); });
+api.collection("products").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.products = m; render(); });
+api.collection("sales").where("date", ">=", addDays(todayKey(), -60)).onSnapshot(s => { S.ventas60 = U.ventasDe(s.docs); render(); });
+api.collection("staff").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.staff = m; renderPersonal(); }, () => renderPersonal());
+api.doc("config/general").onSnapshot(s => { S.cfg = s.exists ? s.data() : {}; llenaCfg(); render(); }, () => {});
+api.doc("config/drive").onSnapshot(s => { S.drive = s.exists ? s.data() : null; U.drive._cfg = S.drive && S.drive.url ? S.drive : null; llenaDrive(); }, () => {});
+$("#dia").value = S.dia; $("#dia").max = todayKey();
+$("#dia").onchange = e => { S.dia = e.target.value || todayKey(); escuchar(); render(); };
+escuchar();
+
+function datos(){
+  return U.resumenDia({nombre: ctx.r.nombre || "Restaurante", date: S.dia, ventas: S.ventas, ventasPrev: S.prev, cuentas: Object.values({...S.cuentas, ...(esHoy() ? S.abiertas : {})}), dia: S.cierre, products: S.products, todasVentas: S.ventas60, metaCocina: Number(S.cfg.metaCocina) || 15});
+}
+function hbars(list, fmt = money0){
+  const mx = Math.max(1, ...list.map(x => x.v));
+  return list.length ? list.map(x => `<div class="hb" title="${esc(x.l)}"><span class="n">${esc(x.l)}</span><span><span class="fill" style="display:block;width:${x.v / mx * 100}%;--c:${x.c || "var(--accent)"}"></span></span><span class="v">${fmt(x.v)}</span></div>`).join("") : `<div class="empty">Sin datos todavía.</div>`;
+}
+let raf = 0;
+function render(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(pintar); }
+function pintar(){
+  const d = datos(); const ahora = new Date();
+  $("#diaTxt").textContent = U.longDay(S.dia).replace(/^./, c => c.toUpperCase()) + (esHoy() ? " · actualizado " + hhmm(Date.now()) : "");
+  $("#vivo").hidden = !esHoy();
+  // comparación a la misma hora de la semana pasada
+  const corte = esHoy() ? ahora.getHours() * 60 + ahora.getMinutes() : 24 * 60;
+  const prevHora = U.r2(S.prev.filter(v => { const t = new Date(v.ts); return t.getHours() * 60 + t.getMinutes() <= corte; }).reduce((s, v) => s + v.total, 0));
+  const pct = prevHora > 0 ? Math.round((d.total - prevHora) / prevHora * 100) : null;
+  const ab = Object.values(S.abiertas); const porCobrar = ab.reduce((s, o) => s + U.totalCuenta(o), 0);
+  const cola = Object.values(S.enCocina || {}).flatMap(o => U.rondasDe(o).filter(r => r.coc && (r.est === "pend" || r.est === "prep")).map(r => ({o, r})));
+  const masLarga = cola.length ? Math.max(...cola.map(x => Date.now() - x.r.t)) : null;
+  $("#kpis").innerHTML = [
+    ["Ventas " + (esHoy() ? "de hoy" : "del día"), money(d.total), pct === null ? "Sin comparación con la semana pasada" : `<span class="${pct >= 0 ? "up" : "down"}">${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct)}%</span> vs. ${U.DIAS[new Date(addDays(S.dia, -7) + "T12:00").getDay()].toLowerCase()} pasado${esHoy() ? " a esta hora" : ""}`],
+    ["Cuentas cobradas", d.tickets, d.tickets ? "Ticket promedio " + money(d.prom) : "—"],
+    ["Mesas abiertas", ab.length, ab.length ? money(porCobrar) + " por cobrar" : "Ninguna"],
+    ["Cocina ahora", cola.length, cola.length ? "Espera más larga " + dur(masLarga) : d.tiempos.rondas ? "Promedio del día " + dur(d.tiempos.espera) : "Sin pedidos"]
+  ].map(([l, v, s]) => `<div class="kpi"><span class="lbl">${l}</span><b>${v}</b><div class="sub">${s}</div></div>`).join("");
+  // horas
+  const HORAS = []; for (let h = 7; h <= 22; h++) HORAS.push(h);
+  const ph = {}; S.prev.forEach(v => { const h = new Date(v.ts).getHours(); ph[h] = (ph[h] || 0) + v.total; });
+  const mx = Math.max(1, ...HORAS.map(h => Math.max(d.porHora[h] || 0, ph[h] || 0)));
+  const pico = Object.entries(d.porHora).sort((a, b) => b[1] - a[1])[0];
+  $("#horaSub").textContent = pico ? "Hora pico: " + pico[0] + ":00 con " + money(pico[1]) : "Aún no hay ventas";
+  $("#horas").innerHTML = `<div class="bars bars2">${HORAS.map(h => `<div class="bcol" title="${h}:00 · hoy ${money(d.porHora[h] || 0)} · semana pasada ${money(ph[h] || 0)}"><div class="g" style="height:${(ph[h] || 0) / mx * 100}%"></div><div class="b" style="height:${(d.porHora[h] || 0) / mx * 100}%"></div></div>`).join("")}</div><div class="xl">${HORAS.map(h => `<span>${h}</span>`).join("")}</div>`;
+  // abiertas
+  $("#abSub").textContent = ab.length ? ab.length + " cuentas · " + money(porCobrar) : "";
+  $("#abiertas").innerHTML = ab.length ? `<table><thead><tr><th>Cuenta</th><th>Mesero</th><th class="r">Tiempo</th><th class="r">Total</th></tr></thead><tbody>${ab.sort((a, b) => a.tAbre - b.tAbre).map(o => `<tr><td>${esc(U.etiquetaCuenta(o))}${o.cli ? `<div class="muted small">${esc(o.cli.n)}</div>` : ""}</td><td>${esc(o.mes ? o.mes.n : "")}</td><td class="r mono">${dur(Date.now() - o.tAbre)}</td><td class="r mono">${money(U.totalCuenta(o))}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No hay cuentas abiertas.</div>`;
+  // cocina
+  const meta = Number(S.cfg.metaCocina) || 15;
+  $("#cocSub").textContent = "Meta: " + meta + " min por pedido";
+  $("#cocina").innerHTML = `<div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:10px">
+      <div class="kpi"><span class="lbl">Espera promedio</span><b>${dur(d.tiempos.espera)}</b><div class="sub">del envío a listo</div></div>
+      <div class="kpi"><span class="lbl">Preparación</span><b>${dur(d.tiempos.prep)}</b><div class="sub">del inicio a listo</div></div>
+      <div class="kpi"><span class="lbl">Comandas</span><b>${d.tiempos.rondas}</b><div class="sub">${d.tiempos.tarde} pasaron de ${meta} min</div></div>
+      <div class="kpi"><span class="lbl">Entrega del mesero</span><b>${dur(d.tiempos.entrega)}</b><div class="sub">de listo a la mesa</div></div></div>
+    ${cola.length ? cola.sort((a, b) => a.r.t - b.r.t).map(x => { const m = U.min(Date.now() - x.r.t); return `<div class="row small" style="padding:4px 0"><span class="grow">${esc(U.etiquetaCuenta(x.o))} · pedido ${x.r.n} · ${x.r.est === "prep" ? "preparando" : "en espera"}</span><span class="mono ${m > meta ? "alerta" : ""}">${m} min</span></div>`; }).join("") : ""}`;
+  // meseros
+  const abPor = {}; ab.forEach(o => { const k = o.mes ? o.mes.n : "—"; abPor[k] = (abPor[k] || 0) + 1; });
+  const ms = d.meseros.slice(); Object.keys(abPor).forEach(k => { if (!ms.find(m => m.n === k)) ms.push({n: k, ventas: 0, cuentas: 0, prom: 0, prop: 0, entrega: null, dur: null}); });
+  $("#meseros").innerHTML = ms.length ? `<table><thead><tr><th>Mesero</th><th class="r">Cuentas</th><th class="r">Ventas</th><th class="r">Ticket prom.</th><th class="r">Propinas</th><th class="r">Entrega prom.</th><th class="r">Mesa abierta prom.</th><th class="r">Abiertas ahora</th></tr></thead><tbody>${ms.map(m => `<tr><td><b style="font-weight:600">${esc(m.n)}</b></td><td class="r mono">${m.cuentas}</td><td class="r mono">${money(m.ventas)}</td><td class="r mono">${m.cuentas ? money(m.prom) : "—"}</td><td class="r mono">${money(m.prop)}</td><td class="r mono">${dur(m.entrega)}</td><td class="r mono">${dur(m.dur)}</td><td class="r mono">${abPor[m.n] || 0}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin ventas todavía.</div>`;
+  $("#topSub").textContent = d.top.length ? d.top.reduce((s, x) => s + x.q, 0) + " unidades" : "";
+  $("#top").innerHTML = hbars(d.top.slice(0, 8).map(x => ({l: x.n + " (" + x.q + ")", v: x.v, c: `var(--cat-${x.k},var(--accent))`})));
+  $("#pagos").innerHTML = hbars(Object.entries(d.porPago).map(([k, v]) => ({l: k, v})));
+  $("#cats").innerHTML = hbars(Object.entries(d.porCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({l: U.catName(k), v, c: `var(--cat-${k},var(--accent))`})));
+  $("#stock").innerHTML = d.stockBajo.length ? `<table><tbody>${d.stockBajo.map(x => `<tr><td class="mono">${esc(x.c)}</td><td>${esc(x.n)}</td><td class="r"><span class="pill ${x.st <= 0 ? "out" : "low"}">${x.st <= 0 ? "Agotado" : x.st + " u"}</span></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Todo el inventario está bien ✔</div>`;
+  $("#anul").innerHTML = d.anul.length ? `<table><tbody>${d.anul.map(a => `<tr><td>${a.q}× ${esc(a.n)}<div class="muted small">${esc(a.cuenta)}${a.por ? " · " + esc(a.por) : ""}</div></td><td class="r mono">${money(a.q * a.p)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin anulaciones.</div>`;
+}
+setInterval(() => { if (esHoy()) render(); }, 30000);
+
+// ---------- PDF y WhatsApp ----------
+$("#btnPdf").onclick = async () => {
+  const b = $("#btnPdf"); b.disabled = true; b.textContent = "Creando PDF…";
+  try {
+    const d = datos(); const blob = await U.resumenPdf(d, ctx.r.logo || null);
+    const nombre = "Resumen " + S.dia + ".pdf";
+    U.sheet(`<h2>Resumen del ${U.fmtDay(S.dia)}</h2><p class="muted small" style="margin:0">PDF listo (${Math.round(blob.size / 1024)} KB).</p>
+      <div class="acts"><button class="btn" id="pD">Descargar</button>${navigator.canShare && navigator.canShare({files: [new File([blob], nombre, {type: "application/pdf"})]}) ? '<button class="btn" id="pS">Compartir</button>' : ""}<button class="btn pri" id="pG">Guardar en Drive</button></div>`, (el, close) => {
+      el.querySelector("#pD").onclick = async () => { (await App.use("downloads")).save({filename: nombre, data: blob}); };
+      const sh = el.querySelector("#pS"); if (sh) sh.onclick = () => navigator.share({files: [new File([blob], nombre, {type: "application/pdf"})], title: nombre}).catch(() => {});
+      el.querySelector("#pG").onclick = async () => {
+        const g = el.querySelector("#pG"); g.disabled = true; g.textContent = "Subiendo…";
+        try { const r = await U.drive.enviar(api, {sub: "Resúmenes diarios", nombre, tipo: "archivo", mime: "application/pdf", base64: await U.blobA64(blob)}); U.toast(r.sinConfirmar ? "Enviado a Drive" : "Guardado en Drive ✔"); close(); }
+        catch (e) { U.toast(e.message); g.disabled = false; g.textContent = "Guardar en Drive"; }
+      };
+    });
+  } catch (e) { U.toast("No se pudo crear el PDF: " + e.message); }
+  b.disabled = false; b.textContent = "Resumen PDF";
+};
+$("#btnWa").onclick = () => {
+  const t = U.resumenTexto(datos()); const cel = S.cfg.waDueno ? U.waCel(S.cfg.waDueno) : "";
+  open("https://wa.me/" + cel + "?text=" + encodeURIComponent(t), "_blank");
+};
+
+// ---------- personal ----------
+const esDueno = ctx.dueno;
+function renderPersonal(){
+  $("#persNota").textContent = esDueno ? "La contraseña la eliges tú; entrégasela a la persona. Si la olvida, puede usar «Olvidé mi contraseña» en la pantalla de ingreso." : "Solo el dueño puede crear o quitar cuentas del personal.";
+  $("#slots").innerHTML = `<div class="slot"><b>Dueño</b><span class="who">${esc(ctx.dueno ? ctx.email + " (tú)" : "—")}</span><span class="pill ok">Todo</span></div>` +
+    App.SLOTS.map(s => { const p = S.staff[s.id]; return `<div class="slot"><b>${s.t}</b><span class="who">${p ? `${esc(p.nombre)} <span class="muted small">· ${esc(p.email)}</span>` : '<span class="muted">Sin asignar</span>'}</span>
+      <span>${esDueno ? (p ? `<button class="btn sm danger" data-quitar="${s.id}">Quitar</button>` : `<button class="btn sm pri" data-alta="${s.id}">Crear cuenta</button>`) : ""}</span></div>`; }).join("");
+}
+$("#slots").onclick = e => {
+  const a = e.target.closest("[data-alta]"), q = e.target.closest("[data-quitar]");
+  if (a) alta(App.SLOTS.find(s => s.id === a.dataset.alta));
+  if (q) { if (!U.confirmar(q, "¿Quitar acceso?")) return; const p = S.staff[q.dataset.quitar]; const b = App.fs.batch(); b.delete(api.doc("staff/" + q.dataset.quitar)); b.delete(App.fs.collection("miembros").doc(p.uid)); b.commit().then(() => U.toast("Acceso quitado"), er => U.toast(er.message)); }
+};
+function alta(slot){
+  U.sheet(`<h2>Cuenta para ${slot.t}</h2><p class="muted small" style="margin:0">Se creará un usuario nuevo. Con él, la persona entra a la misma dirección de la app.</p>
+    <form class="fgrid" id="aF">
+      <label class="field full"><span>Nombre (aparece en las cuentas y reportes)</span><input class="inp" id="aN" required></label>
+      <label class="field full"><span>Correo</span><input class="inp" id="aE" type="email" autocomplete="off" required></label>
+      <label class="field full"><span>Contraseña (mínimo 6 caracteres)</span><input class="inp mono" id="aP" autocomplete="new-password" required></label>
+      <p class="err full" id="aErr"></p>
+      <div class="acts full"><button type="button" class="btn" id="aX">Cancelar</button><button class="btn pri" id="aOk">Crear cuenta</button></div>
+    </form>`, (el, close) => {
+    el.querySelector("#aX").onclick = close;
+    el.querySelector("#aF").onsubmit = async e => {
+      e.preventDefault();
+      const n = el.querySelector("#aN").value.trim(), em = el.querySelector("#aE").value.trim().toLowerCase(), pw = el.querySelector("#aP").value;
+      const err = t => el.querySelector("#aErr").textContent = t;
+      if (!n) return err("Escribe el nombre."); if (pw.length < 6) return err("La contraseña debe tener al menos 6 caracteres.");
+      if (em === (ctx.email || "").toLowerCase()) return err("Ese es tu propio correo; usa uno distinto para el personal.");
+      const ok = el.querySelector("#aOk"); ok.disabled = true; ok.textContent = "Creando…";
+      const sec = firebase.apps.find(a => a.name === "alta") || firebase.initializeApp(window.FIREBASE_CONFIG, "alta");
+      const au = sec.auth();
+      try {
+        let uid;
+        try { uid = (await au.createUserWithEmailAndPassword(em, pw)).user.uid; }
+        catch (x) { if (x.code === "auth/email-already-in-use") uid = (await au.signInWithEmailAndPassword(em, pw)).user.uid; else throw x; }
+        await au.signOut().catch(() => {});
+        const b = App.fs.batch();
+        b.set(api.doc("staff/" + slot.id), {uid, email: em, nombre: n, rol: slot.rol, alta: Date.now()});
+        b.set(App.fs.collection("miembros").doc(uid), {rest: ctx.rest, slot: slot.id, rol: slot.rol, nombre: n});
+        await b.commit();
+        close(); U.toast("Cuenta creada para " + n);
+        U.sheet(`<h2>Cuenta lista ✔</h2><p style="margin:0">Entrégale estos datos a <b>${esc(n)}</b>:</p><div class="card mono small">Dirección: ${esc(location.origin + location.pathname.replace(/[^/]*$/, ""))}<br>Correo: ${esc(em)}<br>Contraseña: ${esc(pw)}</div><div class="acts"><button class="btn pri" id="ok2">Listo</button></div>`, (e2, c2) => { e2.querySelector("#ok2").onclick = c2; });
+      } catch (x) {
+        await au.signOut().catch(() => {});
+        const m = {"auth/invalid-email": "El correo no es válido.", "auth/wrong-password": "Ese correo ya tiene cuenta con otra contraseña. Usa la contraseña que ya tiene o un correo distinto.", "auth/invalid-credential": "Ese correo ya tiene cuenta con otra contraseña. Usa la contraseña que ya tiene o un correo distinto.", "auth/weak-password": "La contraseña es muy corta.", "permission-denied": "Ese correo ya pertenece al personal de otro restaurante.", "auth/operation-not-allowed": "El registro con correo está desactivado en Firebase."}[x.code];
+        err(m || "No se pudo crear: " + x.message); ok.disabled = false; ok.textContent = "Crear cuenta";
+      }
+    };
+    el.querySelector("#aN").focus();
+  });
+}
+
+// ---------- configuración ----------
+function llenaCfg(){ if (document.activeElement && document.activeElement.closest("#fCfg")) return; $("#cMesas").value = S.cfg.mesas || 12; $("#cMeta").value = S.cfg.metaCocina || 15; $("#cDueno").value = S.cfg.duenoNombre || ""; $("#cWa").value = S.cfg.waDueno || ""; }
+function llenaDrive(){ if (document.activeElement && document.activeElement.closest("#fDrive")) return; const d = S.drive || {}; $("#dUrl").value = d.url || ""; $("#dTok").value = d.token || ""; $("#dCarp").value = d.carpeta || ctx.r.nombre || ""; }
+llenaCfg(); llenaDrive();
+$("#fCfg").querySelectorAll("input,button").forEach(x => x.disabled = !esDueno);
+$("#fDrive").querySelectorAll("input,button").forEach(x => x.disabled = !esDueno);
+$("#fCfg").onsubmit = e => {
+  e.preventDefault();
+  const c = {mesas: Math.max(1, Math.min(60, parseInt($("#cMesas").value) || 12)), metaCocina: Math.max(3, Math.min(120, parseInt($("#cMeta").value) || 15)), duenoNombre: $("#cDueno").value.trim(), waDueno: U.limpiaCel($("#cWa").value)};
+  api.doc("config/general").set(c, {merge: true}).then(() => U.toast("Configuración guardada"), er => U.toast(er.message));
+};
+$("#fDrive").onsubmit = e => {
+  e.preventDefault();
+  const url = $("#dUrl").value.trim();
+  if (url && !/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { $("#dErr").textContent = "La URL debe empezar con https://script.google.com/"; return; }
+  $("#dErr").textContent = "";
+  api.doc("config/drive").set({url, token: $("#dTok").value.trim(), carpeta: $("#dCarp").value.trim()}).then(() => U.toast("Drive guardado"), er => U.toast(er.message));
+};
+$("#btnProbar").onclick = async () => {
+  const b = $("#btnProbar"); b.disabled = true; b.textContent = "Probando…";
+  U.drive._cfg = {url: $("#dUrl").value.trim(), token: $("#dTok").value.trim(), carpeta: $("#dCarp").value.trim()};
+  try { const r = await U.drive.enviar(api, {sub: "Pruebas", nombre: "Prueba de conexión.txt", tipo: "archivo", mime: "text/plain", base64: btoa("Conexión correcta " + new Date().toLocaleString("es"))}); $("#dErr").textContent = ""; U.toast(r.sinConfirmar ? "Enviado. Revisa la carpeta Pruebas en tu Drive." : "¡Conexión correcta! ✔"); }
+  catch (e) { $("#dErr").textContent = e.message; }
+  b.disabled = false; b.textContent = "Probar";
+};
+$("#btnScript").onclick = async () => {
+  try { const t = await (await fetch("drive-apps-script.gs", {cache: "no-store"})).text(); await navigator.clipboard.writeText(t.replace("Quinta Josaid", $("#dCarp").value.trim() || ctx.r.nombre || "Restaurante")); U.toast("Código copiado. Pégalo en script.google.com"); }
+  catch { open("drive-apps-script.gs", "_blank"); }
+};
+$("#btnInvDrive").onclick = async () => {
+  try { const f = U.filasInventario(S.products, S.ventas60); const r = await U.drive.enviar(api, {sub: "Inventario", nombre: "Inventario " + todayKey(), tipo: "hoja", filas: f}); U.toast(r.sinConfirmar ? "Inventario enviado a Drive" : "Inventario guardado en Drive ✔"); }
+  catch (e) { U.toast(e.message); }
+};
+$("#btnVenDrive").onclick = async () => {
+  try {
+    const mes = todayKey().slice(0, 7);
+    const snap = await api.collection("sales").where("date", ">=", mes + "-01").get();
+    const filas = [["Fecha", "Hora", "Cuenta", "Mesero", "Cliente", "Cédula", "Código", "Producto", "Categoría", "Cantidad", "Precio", "Subtotal", "Pago"]];
+    U.ventasDe(snap.docs).sort((a, b) => a.ts - b.ts).forEach(v => v.items.forEach(i => filas.push([v._date, hhmm(v.ts), v.mesa || "", v.mes ? v.mes.n : "", v.cli ? v.cli.n : "", v.cli ? v.cli.ced : "", i.c, i.n, U.catName(i.k), i.q, i.p, U.r2(i.q * i.p), v.pago || ""])));
+    const r = await U.drive.enviar(api, {sub: "Ventas", nombre: "Ventas " + mes, tipo: "hoja", filas});
+    U.toast(r.sinConfirmar ? "Ventas enviadas a Drive" : "Ventas del mes guardadas en Drive ✔");
+  } catch (e) { U.toast(e.message); }
+};
+render(); renderPersonal();
+})();
+</script>
+</body>
+</html>

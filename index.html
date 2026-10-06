@@ -12,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
+<script src="backend.js?v=8"></script>
 <style>
 :root{
   --bg:#f5f7ee;--surface:#fff;--surface-2:#e5eed8;--line:#d3dfc2;
@@ -60,15 +61,16 @@ button{cursor:pointer}
 .who .mark{width:34px;height:34px;border-radius:10px;font-size:18px;flex:none}
 .who b{font-family:var(--display);font-weight:800;font-size:18px;display:block;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who small{color:var(--ink-3);font-size:12px}
-.tabs{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:2px}
-.tab{border:0;background:transparent;padding:8px 16px;border-radius:9px;font-weight:600;color:var(--ink-2)}
+.tabs{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:2px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;padding:8px 14px;border-radius:9px;font-weight:600;color:var(--ink-2);white-space:nowrap;flex:none}
 .tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .frames{flex:1;position:relative;min-height:0}
 .frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
 @media (max-width:560px){
   .bar{gap:8px;padding:8px 12px}
   .tabs{order:3;width:100%}
-  .tab{flex:1}
+  .tab{flex:1 0 auto}
 }
 </style>
 </head>
@@ -101,10 +103,7 @@ button{cursor:pointer}
 <!-- App -->
 <header class="bar" id="bar" hidden>
   <div class="who"><div class="mark" id="barMark" aria-hidden="true">🍽️</div><img class="logo" id="barLogo" alt="" hidden><div style="min-width:0"><b id="rName">Restaurante</b><small id="rSub"></small></div></div>
-  <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" data-f="ventas" aria-selected="true">Ventas</button>
-    <button class="tab" role="tab" data-f="caja" aria-selected="false">Caja diaria</button>
-  </nav>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
   <button class="btn" id="logout" type="button">Salir</button>
 </header>
 <main class="frames" id="frames" hidden></main>
@@ -113,9 +112,7 @@ button{cursor:pointer}
 (function(){
 "use strict";
 const $ = s => document.querySelector(s);
-firebase.initializeApp(window.FIREBASE_CONFIG);
-const auth = firebase.auth(), fs = firebase.firestore();
-const ready = fs.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+const auth = App.auth;
 const name = window.APP_NOMBRE || "Restaurante";
 document.title = name; $("#appName").textContent = name;
 
@@ -170,37 +167,60 @@ function block(title, text){
   show("blocked");
 }
 
+// Pantallas según el rol de cada persona.
+const PANT = {
+  admin:   { t: "Resumen", f: "admin" },
+  mesas:   { t: "Mesas", f: "mesas" },
+  cocina:  { t: "Cocina", f: "cocina" },
+  ventas:  { t: "Ventas", f: "ventas" },
+  caja:    { t: "Caja", f: "caja" },
+  clientes:{ t: "Clientes", f: "clientes" }
+};
+const POR_ROL = {
+  admin:  ["admin", "mesas", "cocina", "ventas", "caja", "clientes"],
+  caja:   ["mesas", "ventas", "caja", "clientes"],
+  mesero: ["mesas"],
+  cocina: ["cocina"]
+};
+const V = "?v=8";
 const frames = {};
+let permitidas = [];
 function openFrame(key){
+  if (!permitidas.includes(key)) key = permitidas[0];
   if (!frames[key]) {
     const f = document.createElement("iframe");
-    f.name = "f-" + key; f.src = key + ".html?v=7"; f.title = key === "ventas" ? "Ventas" : "Caja diaria";
+    f.name = "f-" + key; f.src = PANT[key].f + ".html" + V; f.title = PANT[key].t;
+    f.setAttribute("allow", "clipboard-write; screen-wake-lock");
     $("#frames").appendChild(f); frames[key] = f;
   }
   Object.entries(frames).forEach(([k, f]) => f.hidden = k !== key);
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.f === key)));
   try { localStorage.setItem("tab", key); } catch {}
 }
-document.querySelector(".tabs").addEventListener("click", e => { const t = e.target.closest(".tab"); if (t) openFrame(t.dataset.f); });
+document.querySelector("#tabs").addEventListener("click", e => { const t = e.target.closest(".tab"); if (t) openFrame(t.dataset.f); });
+const ROL_TXT = { admin: "Administrador", caja: "Caja", mesero: "Mesero", cocina: "Cocina" };
 
 auth.onAuthStateChanged(async user => {
   if (!user) { show("login"); return; }
-  let r = null;
-  await ready;
-  try { const snap = await fs.collection("restaurantes").doc(user.uid).get(); r = snap.exists ? snap.data() : null; }
-  catch (err) { block("No se pudo verificar tu cuenta", "Revisa tu conexión a internet e inténtalo de nuevo."); return; }
-  if (!r) { block("Cuenta no activa", "Tu cuenta todavía no está activada. Escríbenos para activarla."); return; }
-  const vence = r.vence && r.vence.toDate ? r.vence.toDate() : null;
-  if (!vence || vence < new Date()) { block("Suscripción vencida", "Tu suscripción terminó" + (vence ? " el " + vence.toLocaleDateString("es") : "") + ". Renueva para seguir registrando ventas; tus datos están guardados."); return; }
+  const res = await App.resolveCtx(user);
+  if (res.estado === "error") { block("No se pudo verificar tu cuenta", "Revisa tu conexión a internet e inténtalo de nuevo."); return; }
+  if (res.estado !== "ok") { block("Cuenta no activa", "Tu usuario no está asignado a ningún restaurante. Si eres parte del personal, pide al dueño que cree tu cuenta en Resumen → Personal."); return; }
+  const ctx = res.ctx, r = ctx.r;
+  const vence = App.vence(r);
+  if (!vence || vence < new Date()) { block("Suscripción vencida", (ctx.dueno ? "Tu suscripción terminó" : "La suscripción del restaurante terminó") + (vence ? " el " + vence.toLocaleDateString("es") : "") + ". Renueva para seguir registrando ventas; los datos están guardados."); return; }
   $("#rName").textContent = r.nombre || user.email;
+  document.title = r.nombre || name;
   const logo = typeof r.logo === "string" ? r.logo.trim() : "";
   setLogo(logo, r.nombre || "");
   try { localStorage.setItem("logo", JSON.stringify(logo ? { src: logo, alt: r.nombre || "" } : null)); } catch {}
   const dias = Math.ceil((vence - new Date()) / 864e5);
-  $("#rSub").textContent = dias <= 7 ? "Tu suscripción vence en " + dias + (dias === 1 ? " día" : " días") : user.email;
+  $("#rSub").textContent = (ctx.dueno ? "" : ctx.nombre + " · ") + (ctx.dueno ? "Dueño" : ROL_TXT[ctx.rol] || ctx.rol) + (dias <= 7 && ctx.dueno ? " · vence en " + dias + (dias === 1 ? " día" : " días") : "");
+  permitidas = POR_ROL[ctx.rol] || ["mesas"];
+  $("#tabs").innerHTML = permitidas.map(k => `<button class="tab" role="tab" data-f="${k}" aria-selected="false">${PANT[k].t}</button>`).join("");
+  $("#tabs").hidden = permitidas.length < 2;
   show("app");
-  let last = "ventas"; try { last = localStorage.getItem("tab") || "ventas"; } catch {}
-  openFrame(last === "caja" ? "caja" : "ventas");
+  let last = permitidas[0]; try { last = localStorage.getItem("tab") || last; } catch {}
+  openFrame(last);
 });
 })();
 </script>
