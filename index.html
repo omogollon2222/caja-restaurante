@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Restaurante</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
@@ -14,17 +14,17 @@
 <script src="config.js"></script>
 <style>
 :root{
-  --bg:#fff4dc;--surface:#fff;--surface-2:#ffe7b8;--line:#f2d29b;
-  --ink:#2b1a0e;--ink-2:#6b4529;--ink-3:#9c7657;
-  --accent:#f5361f;--accent-ink:#fff;--accent-soft:#ffdcd2;--bad:#d7141e;
+  --bg:#f5f7ee;--surface:#fff;--surface-2:#e5eed8;--line:#d3dfc2;
+  --ink:#1e2a1b;--ink-2:#5e4a2c;--ink-3:#857a5e;
+  --accent:#00984a;--accent-ink:#fff;--accent-soft:#d6efdf;--bad:#d7141e;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#1c120b;--surface:#27190f;--surface-2:#352316;--line:#4d3423;
-  --ink:#fff1e0;--ink-2:#e8c7a3;--ink-3:#b58f6f;
-  --accent:#ff5a3c;--accent-ink:#1c0904;--accent-soft:#4d1d12;--bad:#ff7b72;
+  --bg:#111811;--surface:#19231a;--surface-2:#223024;--line:#33452f;
+  --ink:#eef4e6;--ink-2:#d9cba8;--ink-3:#a99e80;
+  --accent:#3ccf7a;--accent-ink:#04140a;--accent-soft:#173a25;--bad:#ff7b72;
 }}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -36,8 +36,11 @@ button{cursor:pointer}
 
 /* ingreso */
 .gate{flex:1;display:grid;place-items:center;padding:24px 16px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:28px 24px;box-shadow:0 1px 2px rgba(120,60,10,.06),0 12px 32px rgba(120,60,10,.10);width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}
-.mark{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--accent),#ffab00);display:grid;place-items:center;font-size:24px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:28px 24px;box-shadow:0 1px 2px rgba(50,70,30,.06),0 12px 32px rgba(50,70,30,.10);width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}
+.mark{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--accent),#8cc63f);display:grid;place-items:center;font-size:24px}
+.logo{display:block;width:96px;height:96px;border-radius:50%;object-fit:contain;background:#fff;box-shadow:0 2px 10px rgba(50,70,30,.15)}
+.card .logo{align-self:center}
+.who .logo{width:44px;height:44px;flex:none;box-shadow:0 1px 4px rgba(50,70,30,.18)}
 .card h1{font-family:var(--display);font-weight:800;font-size:26px;margin:0;letter-spacing:-.01em;line-height:1.1}
 .card p{margin:0;color:var(--ink-2)}
 .field{display:flex;flex-direction:column;gap:4px}
@@ -45,7 +48,7 @@ button{cursor:pointer}
 .inp{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 12px;width:100%}
 .inp:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:600}
-.btn.pri{background:linear-gradient(135deg,var(--accent),#ff7a1f);border-color:var(--accent);color:var(--accent-ink);padding:12px;border-radius:12px;box-shadow:0 4px 14px rgba(245,54,31,.25)}
+.btn.pri{background:linear-gradient(135deg,var(--accent),#43b649);border-color:var(--accent);color:var(--accent-ink);padding:12px;border-radius:12px;box-shadow:0 4px 14px rgba(0,152,74,.25)}
 .btn:disabled{opacity:.5;cursor:wait}
 .link{border:0;background:none;color:var(--accent);font-weight:600;padding:0;text-align:left}
 .msg{font-size:14px;min-height:20px;color:var(--ink-2)}
@@ -74,7 +77,8 @@ button{cursor:pointer}
 <!-- Ingreso -->
 <section class="gate" id="login" hidden>
   <form class="card" id="loginForm" novalidate>
-    <div class="mark" aria-hidden="true">🍽️</div>
+    <div class="mark" id="loginMark" aria-hidden="true">🍽️</div>
+    <img class="logo" id="loginLogo" alt="" hidden>
     <div><h1 id="appName">Restaurante</h1><p>Ingresa con la cuenta de tu restaurante.</p></div>
     <label class="field"><span>Correo</span><input class="inp" id="email" type="email" autocomplete="username" required></label>
     <label class="field"><span>Contraseña</span><input class="inp" id="pass" type="password" autocomplete="current-password" required></label>
@@ -96,7 +100,7 @@ button{cursor:pointer}
 
 <!-- App -->
 <header class="bar" id="bar" hidden>
-  <div class="who"><div class="mark" aria-hidden="true">🍽️</div><div style="min-width:0"><b id="rName">Restaurante</b><small id="rSub"></small></div></div>
+  <div class="who"><div class="mark" id="barMark" aria-hidden="true">🍽️</div><img class="logo" id="barLogo" alt="" hidden><div style="min-width:0"><b id="rName">Restaurante</b><small id="rSub"></small></div></div>
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" data-f="ventas" aria-selected="true">Ventas</button>
     <button class="tab" role="tab" data-f="caja" aria-selected="false">Caja diaria</button>
@@ -114,6 +118,20 @@ const auth = firebase.auth(), fs = firebase.firestore();
 const ready = fs.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 const name = window.APP_NOMBRE || "Restaurante";
 document.title = name; $("#appName").textContent = name;
+
+// Logo propio de cada restaurante: campo "logo" en restaurantes/{uid} (nombre del archivo en el repo o un link https).
+// Se recuerda en este celular para mostrarlo también en la pantalla de ingreso.
+function setLogo(src, alt){
+  [["#loginLogo","#loginMark"],["#barLogo","#barMark"]].forEach(([img, mark]) => {
+    const i = $(img);
+    i.onerror = () => { i.hidden = true; $(mark).hidden = false; };
+    if (src) { i.src = src; i.alt = alt || ""; }
+    i.hidden = !src; $(mark).hidden = !!src;
+  });
+  if (src) $("#favicon").href = src;
+}
+let savedLogo = null; try { savedLogo = JSON.parse(localStorage.getItem("logo") || "null"); } catch {}
+if (savedLogo && savedLogo.src) { setLogo(savedLogo.src, savedLogo.alt); if (savedLogo.alt) $("#appName").textContent = savedLogo.alt; }
 
 function show(id){ ["login","blocked"].forEach(x => $("#"+x).hidden = x !== id); const app = id === "app"; $("#bar").hidden = !app; $("#frames").hidden = !app; }
 function msg(t, err){ const m = $("#loginMsg"); m.textContent = t || ""; m.classList.toggle("err", !!err); }
@@ -141,7 +159,7 @@ $("#forgot").addEventListener("click", async () => {
   try { await auth.sendPasswordResetEmail(email); msg("Te enviamos un correo para crear una nueva contraseña."); }
   catch (err) { msg(authErr(err.code), true); }
 });
-const out = () => auth.signOut().then(() => location.reload());
+const out = () => auth.signOut().then(() => { try { localStorage.removeItem("logo"); } catch {} location.reload(); });
 $("#logout").onclick = out; $("#blockOut").onclick = out;
 
 function block(title, text){
@@ -156,7 +174,7 @@ const frames = {};
 function openFrame(key){
   if (!frames[key]) {
     const f = document.createElement("iframe");
-    f.name = "f-" + key; f.src = key + ".html?v=6"; f.title = key === "ventas" ? "Ventas" : "Caja diaria";
+    f.name = "f-" + key; f.src = key + ".html?v=7"; f.title = key === "ventas" ? "Ventas" : "Caja diaria";
     $("#frames").appendChild(f); frames[key] = f;
   }
   Object.entries(frames).forEach(([k, f]) => f.hidden = k !== key);
@@ -175,6 +193,9 @@ auth.onAuthStateChanged(async user => {
   const vence = r.vence && r.vence.toDate ? r.vence.toDate() : null;
   if (!vence || vence < new Date()) { block("Suscripción vencida", "Tu suscripción terminó" + (vence ? " el " + vence.toLocaleDateString("es") : "") + ". Renueva para seguir registrando ventas; tus datos están guardados."); return; }
   $("#rName").textContent = r.nombre || user.email;
+  const logo = typeof r.logo === "string" ? r.logo.trim() : "";
+  setLogo(logo, r.nombre || "");
+  try { localStorage.setItem("logo", JSON.stringify(logo ? { src: logo, alt: r.nombre || "" } : null)); } catch {}
   const dias = Math.ceil((vence - new Date()) / 864e5);
   $("#rSub").textContent = dias <= 7 ? "Tu suscripción vence en " + dias + (dias === 1 ? " día" : " días") : user.email;
   show("app");

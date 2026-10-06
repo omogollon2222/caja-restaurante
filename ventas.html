@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#f5f7ee;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
@@ -10,38 +10,38 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
 :root{
-  --bg:#fff4dc; --surface:#ffffff; --surface-2:#ffe7b8; --line:#f2d29b;
-  --ink:#2b1a0e; --ink-2:#6b4529; --ink-3:#9c7657;
-  --accent:#f5361f; --accent-ink:#ffffff; --accent-soft:#ffdcd2;
+  --bg:#f5f7ee; --surface:#ffffff; --surface-2:#e5eed8; --line:#d3dfc2;
+  --ink:#1e2a1b; --ink-2:#5e4a2c; --ink-3:#857a5e;
+  --accent:#00984a; --accent-ink:#ffffff; --accent-soft:#d6efdf;
   --pool:#0096ff;
   --good:#0f9d4a; --good-bg:#d8f7e2; --warn:#b36b00; --warn-bg:#ffefc2; --bad:#d7141e; --bad-bg:#ffe0dd;
-  --seq1:#fff0b3; --seq2:#ffd35c; --seq3:#ffab2e; --seq4:#ff7a1f; --seq5:#f5361f; --seq6:#b8160d;
-  --cat-Bebidas:#0096ff; --cat-Comida:#f5361f; --cat-Snacks:#12b862; --cat-Piscina:#ffab00;
-  --shadow:0 1px 2px rgba(120,60,10,.08),0 4px 16px rgba(120,60,10,.08);
+  --seq1:#e9f5d8; --seq2:#c3e6a0; --seq3:#86cc78; --seq4:#3fb05c; --seq5:#00984a; --seq6:#006432;
+  --cat-Bebidas:#0096ff; --cat-Comida:#9a6a2e; --cat-Snacks:#e0457b; --cat-Piscina:#ffab00;
+  --shadow:0 1px 2px rgba(50,70,30,.08),0 4px 16px rgba(50,70,30,.08);
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   color-scheme:dark;
-  --bg:#1c120b; --surface:#27190f; --surface-2:#352316; --line:#4d3423;
-  --ink:#fff1e0; --ink-2:#e8c7a3; --ink-3:#b58f6f;
-  --accent:#ff5a3c; --accent-ink:#1c0904; --accent-soft:#4d1d12;
+  --bg:#111811; --surface:#19231a; --surface-2:#223024; --line:#33452f;
+  --ink:#eef4e6; --ink-2:#d9cba8; --ink-3:#a99e80;
+  --accent:#3ccf7a; --accent-ink:#04140a; --accent-soft:#173a25;
   --pool:#33adff;
   --good:#4fe08a; --good-bg:#153322; --warn:#ffc74d; --warn-bg:#3d2d0f; --bad:#ff7b72; --bad-bg:#431814;
-  --seq1:#4a1a0c; --seq2:#7a2710; --seq3:#b33a14; --seq4:#ec5a1d; --seq5:#ff9a3d; --seq6:#ffd36b;
-  --cat-Bebidas:#33adff; --cat-Comida:#ff5a3c; --cat-Snacks:#2fd67d; --cat-Piscina:#ffbf2e;
+  --seq1:#16301e; --seq2:#1d4a2b; --seq3:#24693c; --seq4:#2f9150; --seq5:#4fc46d; --seq6:#a6e58f;
+  --cat-Bebidas:#33adff; --cat-Comida:#d6a463; --cat-Snacks:#ff7aa6; --cat-Piscina:#ffbf2e;
   --shadow:0 1px 2px rgba(0,0,0,.35);
 }}
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --bg:#1c120b; --surface:#27190f; --surface-2:#352316; --line:#4d3423;
-  --ink:#fff1e0; --ink-2:#e8c7a3; --ink-3:#b58f6f;
-  --accent:#ff5a3c; --accent-ink:#1c0904; --accent-soft:#4d1d12;
+  --bg:#111811; --surface:#19231a; --surface-2:#223024; --line:#33452f;
+  --ink:#eef4e6; --ink-2:#d9cba8; --ink-3:#a99e80;
+  --accent:#3ccf7a; --accent-ink:#04140a; --accent-soft:#173a25;
   --pool:#33adff;
   --good:#4fe08a; --good-bg:#153322; --warn:#ffc74d; --warn-bg:#3d2d0f; --bad:#ff7b72; --bad-bg:#431814;
-  --seq1:#4a1a0c; --seq2:#7a2710; --seq3:#b33a14; --seq4:#ec5a1d; --seq5:#ff9a3d; --seq6:#ffd36b;
-  --cat-Bebidas:#33adff; --cat-Comida:#ff5a3c; --cat-Snacks:#2fd67d; --cat-Piscina:#ffbf2e;
+  --seq1:#16301e; --seq2:#1d4a2b; --seq3:#24693c; --seq4:#2f9150; --seq5:#4fc46d; --seq6:#a6e58f;
+  --cat-Bebidas:#33adff; --cat-Comida:#d6a463; --cat-Snacks:#ff7aa6; --cat-Piscina:#ffbf2e;
   --shadow:0 1px 2px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
@@ -78,7 +78,7 @@ h2{font-family:var(--display);font-weight:600;font-size:17px;margin:0;letter-spa
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 12px;font-weight:600;font-size:14px;transition:transform .1s,filter .15s}
 .btn:active{transform:scale(.97)}
 .btn:hover{border-color:var(--ink-3)}
-.btn.pri{background:linear-gradient(135deg,var(--accent),#ff7a1f);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 4px 14px rgba(245,54,31,.22)}
+.btn.pri{background:linear-gradient(135deg,var(--accent),#43b649);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 4px 14px rgba(0,152,74,.22)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.sm{padding:5px 9px;font-size:13px;border-radius:8px}
 .btn:disabled{opacity:.45;cursor:not-allowed}

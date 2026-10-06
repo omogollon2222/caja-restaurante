@@ -9,9 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#FFF4DC; --surface:#FFFFFF; --sunk:#FFEBC4; --ink:#2B1A0E; --muted:#7D5B3F; --line:#F2D29B;
-  --wine:#F5361F; --wine-ink:#FFFFFF; --wine-soft:#FFDCD2; --olive:#0F9D4A; --saffron:#FFAB00; --red:#D7141E;
-  --m1:#F5361F; --m2:#FFAB00; --m3:#12B862; --m4:#0096FF; --m5:#9C7657;
+  --bg:#F5F7EE; --surface:#FFFFFF; --sunk:#E5EED8; --ink:#1E2A1B; --muted:#6B5A3E; --line:#D3DFC2;
+  --wine:#00984A; --wine-ink:#FFFFFF; --wine-soft:#D6EFDF; --olive:#0F9D4A; --saffron:#FFAB00; --red:#D7141E;
+  --m1:#00984A; --m2:#FFAB00; --m3:#9A6A2E; --m4:#0096FF; --m5:#8A8F80;
   --font:"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -19,15 +19,15 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#1C120B; --surface:#27190F; --sunk:#352316; --ink:#FFF1E0; --muted:#C9A383; --line:#4D3423;
-    --wine:#FF5A3C; --wine-ink:#1C0904; --wine-soft:#4D1D12; --olive:#4FE08A; --saffron:#FFBF2E; --red:#FF7B72;
-    --m1:#FF5A3C; --m2:#FFBF2E; --m3:#2FD67D; --m4:#33ADFF; --m5:#B58F6F;
+    --bg:#111811; --surface:#19231A; --sunk:#223024; --ink:#EEF4E6; --muted:#C2B593; --line:#33452F;
+    --wine:#3CCF7A; --wine-ink:#04140A; --wine-soft:#173A25; --olive:#4FE08A; --saffron:#FFBF2E; --red:#FF7B72;
+    --m1:#3CCF7A; --m2:#FFBF2E; --m3:#D6A463; --m4:#33ADFF; --m5:#A9AE9E;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#1C120B; --surface:#27190F; --sunk:#352316; --ink:#FFF1E0; --muted:#C9A383; --line:#4D3423;
-  --wine:#FF5A3C; --wine-ink:#1C0904; --wine-soft:#4D1D12; --olive:#4FE08A; --saffron:#FFBF2E; --red:#FF7B72;
-  --m1:#FF5A3C; --m2:#FFBF2E; --m3:#2FD67D; --m4:#33ADFF; --m5:#B58F6F;
+  --bg:#111811; --surface:#19231A; --sunk:#223024; --ink:#EEF4E6; --muted:#C2B593; --line:#33452F;
+  --wine:#3CCF7A; --wine-ink:#04140A; --wine-soft:#173A25; --olive:#4FE08A; --saffron:#FFBF2E; --red:#FF7B72;
+  --m1:#3CCF7A; --m2:#FFBF2E; --m3:#D6A463; --m4:#33ADFF; --m5:#A9AE9E;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -46,7 +46,7 @@ header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items
 .status.local .dot{background:var(--saffron)}
 
 .layout{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:28px;align-items:start}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 1px 2px rgba(120,60,10,.06),0 8px 24px rgba(120,60,10,.07)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 1px 2px rgba(50,70,30,.06),0 8px 24px rgba(50,70,30,.07)}
 
 /* Formulario del cierre */
 .form-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
@@ -79,7 +79,7 @@ textarea.notes{width:100%;min-height:64px;padding:9px 10px;border:1px solid var(
 .form-foot{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
 .btn{border:1px solid var(--line);background:var(--surface);padding:10px 16px;border-radius:12px;transition:transform .1s,filter .15s;cursor:pointer;font-weight:600}
 .btn:hover{border-color:var(--muted)}
-.btn.primary{background:linear-gradient(135deg,var(--wine),#FF7A1F);border-color:var(--wine);color:var(--wine-ink);flex:1;box-shadow:0 4px 14px rgba(245,54,31,.25)}
+.btn.primary{background:linear-gradient(135deg,var(--wine),#43B649);border-color:var(--wine);color:var(--wine-ink);flex:1;box-shadow:0 4px 14px rgba(0,152,74,.25)}
 .btn:active{transform:scale(.98)}
 .btn.primary:hover{filter:brightness(1.07)}
 .btn.danger{color:var(--red)}
