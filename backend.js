@@ -85,10 +85,16 @@
     }
   };
 
+  // El personal entra con su puesto y un PIN. Por dentro, Firebase usa un correo y una clave
+  // derivados del código del restaurante, el puesto y el PIN (nadie tiene que escribirlos).
+  const limpiaCodigo = c => String(c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const correoPersonal = (slot, codigo) => slot + "." + limpiaCodigo(codigo) + "@personal.cajarestaurante.app";
+  const clavePin = pin => "pin-" + String(pin) + "-cr";
+
   const goHome = () => { (window.top || window).location.href = "index.html"; return new Promise(() => {}); };
 
   window.App = {
-    auth, fs, ready, firstUser, scoped, resolveCtx, activa, vence, ROLES, SLOTS,
+    auth, fs, ready, firstUser, scoped, resolveCtx, activa, vence, ROLES, SLOTS, limpiaCodigo, correoPersonal, clavePin,
     async ctx() {
       const u = await firstUser;
       const r = await resolveCtx(u);

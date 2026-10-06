@@ -12,7 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=8"></script>
+<script src="backend.js?v=9"></script>
 <style>
 :root{
   --bg:#f5f7ee;--surface:#fff;--surface-2:#e5eed8;--line:#d3dfc2;
@@ -53,6 +53,16 @@ button{cursor:pointer}
 .btn:disabled{opacity:.5;cursor:wait}
 .link{border:0;background:none;color:var(--accent);font-weight:600;padding:0;text-align:left}
 .msg{font-size:14px;min-height:20px;color:var(--ink-2)}
+.modo{display:grid;grid-template-columns:1fr 1fr;background:var(--surface-2);border-radius:12px;padding:3px;gap:3px}
+.modo button{border:0;background:transparent;border-radius:9px;padding:8px;font-weight:600;color:var(--ink-2)}
+.modo button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#mPin,#mCorreo{display:flex;flex-direction:column;gap:12px}
+#mPin[hidden],#mCorreo[hidden]{display:none}
+.puestos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.puestos button{border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 4px;font-weight:600;font-size:14px}
+.puestos button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.pin{font-size:26px;letter-spacing:.4em;text-align:center;font-family:ui-monospace,Menlo,monospace}
+.codigo{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--ink-2);background:var(--surface-2);border-radius:10px;padding:8px 12px}
 .msg.err{color:var(--bad)}
 
 /* app */
@@ -81,11 +91,20 @@ button{cursor:pointer}
   <form class="card" id="loginForm" novalidate>
     <div class="mark" id="loginMark" aria-hidden="true">🍽️</div>
     <img class="logo" id="loginLogo" alt="" hidden>
-    <div><h1 id="appName">Restaurante</h1><p>Ingresa con la cuenta de tu restaurante.</p></div>
-    <label class="field"><span>Correo</span><input class="inp" id="email" type="email" autocomplete="username" required></label>
-    <label class="field"><span>Contraseña</span><input class="inp" id="pass" type="password" autocomplete="current-password" required></label>
+    <div><h1 id="appName">Restaurante</h1><p id="loginSub">Elige tu puesto y escribe tu PIN.</p></div>
+    <div class="modo" role="tablist"><button type="button" data-m="pin" aria-pressed="true">Personal</button><button type="button" data-m="correo" aria-pressed="false">Dueño (correo)</button></div>
+    <div id="mPin">
+      <div class="codigo" id="codigoVer" hidden><span>Restaurante: <b id="codigoTxt"></b></span><button class="link" id="codigoCambiar" type="button">cambiar</button></div>
+      <label class="field" id="codigoField"><span>Código del restaurante (te lo da el dueño)</span><input class="inp" id="codigo" autocomplete="off" autocapitalize="none" placeholder="ej. quintajosaid"></label>
+      <div class="field"><span>Tu puesto</span><div class="puestos" id="puestos"></div></div>
+      <label class="field"><span>PIN</span><input class="inp pin" id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="••••"></label>
+    </div>
+    <div id="mCorreo" hidden>
+      <label class="field"><span>Correo</span><input class="inp" id="email" type="email" autocomplete="username"></label>
+      <label class="field"><span>Contraseña</span><input class="inp" id="pass" type="password" autocomplete="current-password"></label>
+    </div>
     <button class="btn pri" id="enter" type="submit">Ingresar</button>
-    <button class="link" id="forgot" type="button">Olvidé mi contraseña</button>
+    <button class="link" id="forgot" type="button" hidden>Olvidé mi contraseña</button>
     <div class="msg" id="loginMsg" role="status"></div>
   </form>
 </section>
@@ -141,9 +160,45 @@ const authErr = c => ({
   "auth/network-request-failed":"Sin conexión a internet. Revisa tu red."
 })[c] || "No se pudo ingresar. Inténtalo otra vez.";
 
+// ---------- ingreso: personal con puesto + PIN, o dueño con correo ----------
+const PUESTOS = [["m1","Mesero 1"],["m2","Mesero 2"],["m3","Mesero 3"],["m4","Mesero 4"],["m5","Mesero 5"],["cocina","Cocina"],["caja","Caja"],["admin","Administrador"]];
+let modo = "pin", puesto = "";
+try { puesto = localStorage.getItem("puesto") || ""; } catch {}
+let codigoGuardado = ""; try { codigoGuardado = localStorage.getItem("codigoRest") || ""; } catch {}
+try { if (localStorage.getItem("modoIngreso") === "correo") modo = "correo"; } catch {}
+$("#puestos").innerHTML = PUESTOS.map(([k, t]) => `<button type="button" data-p="${k}" aria-pressed="${k === puesto}">${t}</button>`).join("");
+$("#puestos").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (!b) return; puesto = b.dataset.p; $("#puestos").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); $("#pin").focus(); });
+function pintaCodigo(){ $("#codigoVer").hidden = !codigoGuardado; $("#codigoField").hidden = !!codigoGuardado; $("#codigoTxt").textContent = codigoGuardado; $("#codigo").value = codigoGuardado; }
+$("#codigoCambiar").onclick = () => { codigoGuardado = ""; pintaCodigo(); $("#codigo").focus(); };
+function setModo(m){
+  modo = m; try { localStorage.setItem("modoIngreso", m); } catch {}
+  document.querySelectorAll(".modo button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === m)));
+  $("#mPin").hidden = m !== "pin"; $("#mCorreo").hidden = m !== "correo"; $("#forgot").hidden = m !== "correo";
+  $("#loginSub").textContent = m === "pin" ? "Elige tu puesto y escribe tu PIN." : "Ingresa con el correo del dueño del restaurante.";
+  msg("");
+}
+document.querySelector(".modo").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (b) setModo(b.dataset.m); });
+pintaCodigo(); setModo(modo);
+$("#pin").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); });
+
 $("#loginForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const email = $("#email").value.trim(), pass = $("#pass").value;
+  let email, pass;
+  if (modo === "pin") {
+    const codigo = App.limpiaCodigo(codigoGuardado || $("#codigo").value);
+    const pin = $("#pin").value.trim();
+    if (!codigo) { msg("Escribe el código del restaurante.", true); return; }
+    if (!puesto) { msg("Elige tu puesto.", true); return; }
+    if (!/^\d{1,6}$/.test(pin)) { msg("El PIN son números (hasta 6).", true); return; }
+    email = App.correoPersonal(puesto, codigo); pass = App.clavePin(pin);
+    try { localStorage.setItem("puesto", puesto); } catch {}
+    $("#enter").disabled = true; msg("Ingresando…");
+    try { await auth.signInWithEmailAndPassword(email, pass); try { localStorage.setItem("codigoRest", codigo); } catch {} codigoGuardado = codigo; msg(""); }
+    catch (err) { msg(["auth/invalid-credential","auth/wrong-password","auth/user-not-found","auth/invalid-login-credentials"].includes(err.code) ? "PIN incorrecto, o ese puesto no tiene cuenta en este restaurante. Revisa el código del restaurante." : authErr(err.code), true); $("#pin").value = ""; }
+    $("#enter").disabled = false;
+    return;
+  }
+  email = $("#email").value.trim(); pass = $("#pass").value;
   if (!email || !pass) { msg("Escribe tu correo y contraseña.", true); return; }
   $("#enter").disabled = true; msg("Ingresando…");
   try { await auth.signInWithEmailAndPassword(email, pass); msg(""); }
@@ -182,7 +237,7 @@ const POR_ROL = {
   mesero: ["mesas"],
   cocina: ["cocina"]
 };
-const V = "?v=8";
+const V = "?v=9";
 const frames = {};
 let permitidas = [];
 function openFrame(key){
@@ -204,7 +259,7 @@ auth.onAuthStateChanged(async user => {
   if (!user) { show("login"); return; }
   const res = await App.resolveCtx(user);
   if (res.estado === "error") { block("No se pudo verificar tu cuenta", "Revisa tu conexión a internet e inténtalo de nuevo."); return; }
-  if (res.estado !== "ok") { block("Cuenta no activa", "Tu usuario no está asignado a ningún restaurante. Si eres parte del personal, pide al dueño que cree tu cuenta en Resumen → Personal."); return; }
+  if (res.estado !== "ok") { block("Cuenta no activa", "Tu usuario no está asignado a ningún restaurante. Si eres parte del personal, pide al dueño que cree tu puesto y PIN en Resumen → Personal."); return; }
   const ctx = res.ctx, r = ctx.r;
   const vence = App.vence(r);
   if (!vence || vence < new Date()) { block("Suscripción vencida", (ctx.dueno ? "Tu suscripción terminó" : "La suscripción del restaurante terminó") + (vence ? " el " + vence.toLocaleDateString("es") : "") + ". Renueva para seguir registrando ventas; los datos están guardados."); return; }

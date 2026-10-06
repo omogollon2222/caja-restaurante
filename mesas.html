@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=8">
+<link rel="stylesheet" href="estilo.css?v=9">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=8"></script>
-<script src="comun.js?v=8"></script>
+<script src="backend.js?v=9"></script>
+<script src="comun.js?v=9"></script>
 <style>
 .cuentas{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .cta{text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow);position:relative}
@@ -143,12 +143,12 @@ api.collection("orders").where("est", "==", "abierta").onSnapshot(s => {
 // Pedidos de mostrador (venta directa) que siguen en cocina o listos para entregar.
 api.collection("orders").where("coc", "==", true).onSnapshot(s => {
   const m = {}; s.docs.forEach(d => { const o = {id: d.id, ...d.data()}; if (o.est !== "abierta") m[d.id] = o; }); S.extra = m; avisar(); render();
-});
-api.collection("products").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.products = m; render(); });
-api.collection("clients").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.clients = m; });
+}, e => U.toast("Pedidos de cocina: " + e.message));
+api.collection("products").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.products = m; render(); }, e => U.toast("Productos: " + e.message));
+api.collection("clients").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.clients = m; }, e => U.toast("Clientes: " + e.message));
 api.collection("staff").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.staff = m; }, () => {});
 api.doc("config/general").onSnapshot(s => { S.cfg = {mesas: 12, ...(s.exists ? s.data() : {})}; render(); }, () => {});
-api.collection("sales").where("date", ">=", addDays(todayKey(), -60)).onSnapshot(s => { S.ventas = U.ventasDe(s.docs); render(); });
+api.collection("sales").where("date", ">=", addDays(todayKey(), -60)).onSnapshot(s => { S.ventas = U.ventasDe(s.docs); render(); }, e => U.toast("Ventas: " + e.message));
 
 // ---------- avisos de "listo" ----------
 function esMia(o){ return o.mes && o.mes.uid === ctx.uid; }

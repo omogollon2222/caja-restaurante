@@ -2,8 +2,9 @@
 // Si cambias las reglas en la consola, actualiza también este archivo.
 //
 // - Cada restaurante solo ve sus propios datos (restaurantes/{uidDueño}).
-// - El personal (hasta 5 meseros, cocina, caja y un administrador) entra con su propia cuenta,
-//   enlazada en miembros/{uidPersona}. Solo el dueño crea o quita personal.
+// - El personal (hasta 5 meseros, cocina, caja y un administrador) entra con su puesto y PIN; cada puesto
+//   es una cuenta propia enlazada en miembros/{uidPersona}. Solo el dueño crea, cambia o quita personal
+//   y solo él puede ver los PIN (colección pins).
 // - Nadie puede editar la ficha del restaurante (nombre, vence, logo): solo el administrador desde la consola.
 // - Con la suscripción vencida se pueden ver los datos, pero no registrar ni borrar nada.
 // - Todo lo que no está aquí queda cerrado.
@@ -41,11 +42,12 @@ service cloud.firestore {
       allow write: if false;
 
       match /{coleccion}/{docId} {
-        allow read: if accede(uid)
-          && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'staff', 'config'];
+        allow read: if (accede(uid)
+          && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'staff', 'config'])
+          || (esDueno(uid) && coleccion == 'pins');
         allow write: if activo(uid) && (
           (esDueno(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'config'])
-          || (esDueno(uid) && coleccion == 'staff' && docId in ['admin', 'm1', 'm2', 'm3', 'm4', 'm5', 'cocina', 'caja'])
+          || (esDueno(uid) && coleccion in ['staff', 'pins'] && docId in ['admin', 'm1', 'm2', 'm3', 'm4', 'm5', 'cocina', 'caja'])
           || (esPersonal(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients'])
         );
       }

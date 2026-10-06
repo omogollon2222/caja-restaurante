@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=8">
+<link rel="stylesheet" href="estilo.css?v=9">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=8"></script>
-<script src="comun.js?v=8"></script>
+<script src="backend.js?v=9"></script>
+<script src="comun.js?v=9"></script>
 <style>
 .vivo{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
 .vivo i{width:8px;height:8px;border-radius:50%;background:var(--good);animation:lat 2s infinite}
@@ -72,7 +72,12 @@ code{font-family:var(--mono);font-size:13px;background:var(--surface-2);padding:
   <!-- PERSONAL -->
   <section id="t-personal" hidden>
     <div class="card">
-      <div class="chead"><div><h2>Cuentas del personal</h2><p>Cada persona entra con su propio correo y contraseña y ve solo su pantalla: los meseros ven <b>Mesas</b>, la cocina ve <b>Cocina</b>, caja ve <b>Mesas, Ventas, Caja y Clientes</b> y el administrador ve todo.</p></div></div>
+      <div class="chead"><div><h2>Cuentas del personal</h2><p>Cada persona entra eligiendo su <b>puesto</b> y escribiendo su <b>PIN</b> (solo números, hasta 6). Ve solo su pantalla: los meseros ven <b>Mesas</b>, la cocina ve <b>Cocina</b>, caja ve <b>Mesas, Ventas, Caja y Clientes</b> y el administrador ve todo.</p></div></div>
+      <form class="row" id="fCodigo" style="background:var(--surface-2);border-radius:12px;padding:10px 12px;margin-bottom:6px">
+        <label class="field grow" style="min-width:200px"><span>Código del restaurante (el personal lo escribe la primera vez que ingresa en su celular)</span><input class="inp mono" id="codRest" autocomplete="off" autocapitalize="none" placeholder="ej. quintajosaid"></label>
+        <button class="btn pri" id="btnCod">Guardar código</button>
+      </form>
+      <p class="muted small" id="codNota" style="margin:0 0 6px"></p>
       <div id="slots"></div>
       <p class="muted small" id="persNota"></p>
     </div>
@@ -141,7 +146,7 @@ api.collection("orders").where("coc", "==", true).onSnapshot(s => { const m = {}
 api.collection("products").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.products = m; render(); });
 api.collection("sales").where("date", ">=", addDays(todayKey(), -60)).onSnapshot(s => { S.ventas60 = U.ventasDe(s.docs); render(); });
 api.collection("staff").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.staff = m; renderPersonal(); }, () => renderPersonal());
-api.doc("config/general").onSnapshot(s => { S.cfg = s.exists ? s.data() : {}; llenaCfg(); render(); }, () => {});
+api.doc("config/general").onSnapshot(s => { S.cfg = s.exists ? s.data() : {}; llenaCfg(); render(); if (typeof renderPersonal === "function") renderPersonal(); }, () => {});
 api.doc("config/drive").onSnapshot(s => { S.drive = s.exists ? s.data() : null; U.drive._cfg = S.drive && S.drive.url ? S.drive : null; llenaDrive(); }, () => {});
 $("#dia").value = S.dia; $("#dia").max = todayKey();
 $("#dia").onchange = e => { S.dia = e.target.value || todayKey(); escuchar(); render(); };
@@ -229,56 +234,88 @@ $("#btnWa").onclick = () => {
   open("https://wa.me/" + cel + "?text=" + encodeURIComponent(t), "_blank");
 };
 
-// ---------- personal ----------
+// ---------- personal (puesto + PIN) ----------
 const esDueno = ctx.dueno;
+S.pins = {};
+if (esDueno) api.collection("pins").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.pins = m; renderPersonal(); }, () => {});
+const codigo = () => App.limpiaCodigo(S.cfg.codigo || "");
 function renderPersonal(){
-  $("#persNota").textContent = esDueno ? "La contraseña la eliges tú; entrégasela a la persona. Si la olvida, puede usar «Olvidé mi contraseña» en la pantalla de ingreso." : "Solo el dueño puede crear o quitar cuentas del personal.";
-  $("#slots").innerHTML = `<div class="slot"><b>Dueño</b><span class="who">${esc(ctx.dueno ? ctx.email + " (tú)" : "—")}</span><span class="pill ok">Todo</span></div>` +
-    App.SLOTS.map(s => { const p = S.staff[s.id]; return `<div class="slot"><b>${s.t}</b><span class="who">${p ? `${esc(p.nombre)} <span class="muted small">· ${esc(p.email)}</span>` : '<span class="muted">Sin asignar</span>'}</span>
-      <span>${esDueno ? (p ? `<button class="btn sm danger" data-quitar="${s.id}">Quitar</button>` : `<button class="btn sm pri" data-alta="${s.id}">Crear cuenta</button>`) : ""}</span></div>`; }).join("");
+  const hay = Object.keys(S.staff).length > 0;
+  if (!(document.activeElement && document.activeElement.id === "codRest")) $("#codRest").value = S.cfg.codigo || App.limpiaCodigo(ctx.r.nombre || "");
+  $("#codRest").disabled = !esDueno || (hay && !!S.cfg.codigo); $("#btnCod").hidden = !esDueno || (hay && !!S.cfg.codigo);
+  $("#codNota").textContent = !S.cfg.codigo ? (esDueno ? "Primero guarda el código del restaurante; luego crea los puestos." : "") : hay ? "Código: " + codigo() + ". Para cambiarlo, primero quita todas las cuentas del personal." : "Código: " + codigo();
+  $("#persNota").textContent = esDueno ? "Entrega a cada persona: la dirección de la app, el código del restaurante, su puesto y su PIN. Si olvida el PIN, aquí lo puedes ver o cambiar." : "Solo el dueño puede crear, cambiar o quitar cuentas del personal.";
+  $("#slots").innerHTML = `<div class="slot"><b>Dueño</b><span class="who">${esc(ctx.dueno ? ctx.email + " (tú, entras con correo)" : "—")}</span><span class="pill ok">Todo</span></div>` +
+    App.SLOTS.map(s => { const p = S.staff[s.id]; const pin = S.pins[s.id] && S.pins[s.id].pin;
+      return `<div class="slot"><b>${s.t}</b><span class="who">${p ? `${esc(p.nombre)}${esDueno && pin ? ` <span class="muted small">· PIN <span class="mono" data-pinver="${s.id}">••••</span></span>` : ""}` : '<span class="muted">Sin asignar</span>'}</span>
+      <span class="row" style="justify-content:flex-end">${esDueno ? (p ? `<button class="btn sm" data-cambiar="${s.id}">Cambiar PIN</button><button class="btn sm danger" data-quitar="${s.id}">Quitar</button>` : `<button class="btn sm pri" data-alta="${s.id}" ${S.cfg.codigo ? "" : "disabled"}>Crear</button>`) : ""}</span></div>`; }).join("");
 }
-$("#slots").onclick = e => {
-  const a = e.target.closest("[data-alta]"), q = e.target.closest("[data-quitar]");
-  if (a) alta(App.SLOTS.find(s => s.id === a.dataset.alta));
-  if (q) { if (!U.confirmar(q, "¿Quitar acceso?")) return; const p = S.staff[q.dataset.quitar]; const b = App.fs.batch(); b.delete(api.doc("staff/" + q.dataset.quitar)); b.delete(App.fs.collection("miembros").doc(p.uid)); b.commit().then(() => U.toast("Acceso quitado"), er => U.toast(er.message)); }
+$("#fCodigo").onsubmit = e => {
+  e.preventDefault();
+  const c = App.limpiaCodigo($("#codRest").value);
+  if (c.length < 3 || c.length > 24) { U.toast("El código debe tener de 3 a 24 letras o números, sin espacios."); return; }
+  api.doc("config/general").set({codigo: c}, {merge: true}).then(() => U.toast("Código guardado: " + c), er => U.toast(er.message));
 };
-function alta(slot){
-  U.sheet(`<h2>Cuenta para ${slot.t}</h2><p class="muted small" style="margin:0">Se creará un usuario nuevo. Con él, la persona entra a la misma dirección de la app.</p>
+$("#slots").onclick = e => {
+  const a = e.target.closest("[data-alta]"), q = e.target.closest("[data-quitar]"), c = e.target.closest("[data-cambiar]"), v = e.target.closest("[data-pinver]");
+  if (v) { v.textContent = v.textContent.includes("•") ? (S.pins[v.dataset.pinver] || {}).pin || "" : "••••"; return; }
+  if (a) alta(App.SLOTS.find(s => s.id === a.dataset.alta));
+  if (c) alta(App.SLOTS.find(s => s.id === c.dataset.cambiar), true);
+  if (q) { if (!U.confirmar(q, "¿Quitar acceso?")) return; const p = S.staff[q.dataset.quitar]; const b = App.fs.batch(); b.delete(api.doc("staff/" + q.dataset.quitar)); if (p.uid) b.delete(App.fs.collection("miembros").doc(p.uid)); b.commit().then(() => U.toast("Acceso quitado"), er => U.toast(er.message)); }
+};
+async function cuentaAuth(email, pinNuevo, pinViejo){
+  const sec = firebase.apps.find(a => a.name === "alta") || firebase.initializeApp(window.FIREBASE_CONFIG, "alta");
+  const au = sec.auth();
+  try {
+    let cred;
+    try { cred = await au.createUserWithEmailAndPassword(email, App.clavePin(pinNuevo)); }
+    catch (x) {
+      if (x.code !== "auth/email-already-in-use") throw x;
+      // El puesto ya tuvo cuenta: se entra con el PIN anterior (o el nuevo) y se cambia.
+      try { cred = await au.signInWithEmailAndPassword(email, App.clavePin(pinViejo || pinNuevo)); }
+      catch { if (!pinViejo) throw x; cred = await au.signInWithEmailAndPassword(email, App.clavePin(pinNuevo)); }
+      if (pinViejo && pinViejo !== pinNuevo) await cred.user.updatePassword(App.clavePin(pinNuevo));
+    }
+    return cred.user.uid;
+  } finally { await au.signOut().catch(() => {}); }
+}
+function alta(slot, cambiar){
+  const p = S.staff[slot.id]; const pinViejo = S.pins[slot.id] && S.pins[slot.id].pin;
+  U.sheet(`<h2>${cambiar ? "Cambiar PIN · " : "Crear "}${slot.t}</h2>
     <form class="fgrid" id="aF">
-      <label class="field full"><span>Nombre (aparece en las cuentas y reportes)</span><input class="inp" id="aN" required></label>
-      <label class="field full"><span>Correo</span><input class="inp" id="aE" type="email" autocomplete="off" required></label>
-      <label class="field full"><span>Contraseña (mínimo 6 caracteres)</span><input class="inp mono" id="aP" autocomplete="new-password" required></label>
+      <label class="field full"><span>Nombre de la persona (aparece en cuentas y reportes)</span><input class="inp" id="aN" value="${esc(p ? p.nombre : "")}" required></label>
+      <label class="field full"><span>PIN (solo números, de 4 a 6 recomendado)</span><input class="inp mono" id="aP" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" style="font-size:22px;letter-spacing:.3em"></label>
       <p class="err full" id="aErr"></p>
-      <div class="acts full"><button type="button" class="btn" id="aX">Cancelar</button><button class="btn pri" id="aOk">Crear cuenta</button></div>
+      <div class="acts full"><button type="button" class="btn" id="aX">Cancelar</button><button class="btn pri" id="aOk">${cambiar ? "Guardar" : "Crear"}</button></div>
     </form>`, (el, close) => {
     el.querySelector("#aX").onclick = close;
+    el.querySelector("#aP").oninput = e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); };
     el.querySelector("#aF").onsubmit = async e => {
       e.preventDefault();
-      const n = el.querySelector("#aN").value.trim(), em = el.querySelector("#aE").value.trim().toLowerCase(), pw = el.querySelector("#aP").value;
+      const n = el.querySelector("#aN").value.trim(), pin = el.querySelector("#aP").value.trim();
       const err = t => el.querySelector("#aErr").textContent = t;
-      if (!n) return err("Escribe el nombre."); if (pw.length < 6) return err("La contraseña debe tener al menos 6 caracteres.");
-      if (em === (ctx.email || "").toLowerCase()) return err("Ese es tu propio correo; usa uno distinto para el personal.");
-      const ok = el.querySelector("#aOk"); ok.disabled = true; ok.textContent = "Creando…";
-      const sec = firebase.apps.find(a => a.name === "alta") || firebase.initializeApp(window.FIREBASE_CONFIG, "alta");
-      const au = sec.auth();
+      if (!n) return err("Escribe el nombre.");
+      if (!/^\d{1,6}$/.test(pin)) return err("El PIN deben ser números (hasta 6).");
+      const otro = Object.entries(S.pins).find(([k, v]) => k !== slot.id && v.pin === pin && S.staff[k]);
+      if (otro) return err("Ese PIN ya lo usa otro puesto; elige uno distinto.");
+      if (!codigo()) return err("Primero guarda el código del restaurante.");
+      const ok = el.querySelector("#aOk"); ok.disabled = true; ok.textContent = "Guardando…";
       try {
-        let uid;
-        try { uid = (await au.createUserWithEmailAndPassword(em, pw)).user.uid; }
-        catch (x) { if (x.code === "auth/email-already-in-use") uid = (await au.signInWithEmailAndPassword(em, pw)).user.uid; else throw x; }
-        await au.signOut().catch(() => {});
+        const email = App.correoPersonal(slot.id, codigo());
+        const uid = await cuentaAuth(email, pin, pinViejo);
         const b = App.fs.batch();
-        b.set(api.doc("staff/" + slot.id), {uid, email: em, nombre: n, rol: slot.rol, alta: Date.now()});
+        b.set(api.doc("pins/" + slot.id), {pin});
+        b.set(api.doc("staff/" + slot.id), {uid, email, nombre: n, rol: slot.rol, alta: (p && p.alta) || Date.now()});
         b.set(App.fs.collection("miembros").doc(uid), {rest: ctx.rest, slot: slot.id, rol: slot.rol, nombre: n});
         await b.commit();
-        close(); U.toast("Cuenta creada para " + n);
-        U.sheet(`<h2>Cuenta lista ✔</h2><p style="margin:0">Entrégale estos datos a <b>${esc(n)}</b>:</p><div class="card mono small">Dirección: ${esc(location.origin + location.pathname.replace(/[^/]*$/, ""))}<br>Correo: ${esc(em)}<br>Contraseña: ${esc(pw)}</div><div class="acts"><button class="btn pri" id="ok2">Listo</button></div>`, (e2, c2) => { e2.querySelector("#ok2").onclick = c2; });
+        close();
+        U.sheet(`<h2>Listo ✔</h2><p style="margin:0">Entrégale estos datos a <b>${esc(n)}</b>:</p><div class="card small" style="line-height:1.8">Dirección: <b>${esc(location.origin + location.pathname.replace(/[^/]*$/, ""))}</b><br>Código del restaurante: <b class="mono">${esc(codigo())}</b><br>Puesto: <b>${slot.t}</b><br>PIN: <b class="mono">${esc(pin)}</b></div><div class="acts"><button class="btn pri" id="ok2">Listo</button></div>`, (e2, c2) => { e2.querySelector("#ok2").onclick = c2; });
       } catch (x) {
-        await au.signOut().catch(() => {});
-        const m = {"auth/invalid-email": "El correo no es válido.", "auth/wrong-password": "Ese correo ya tiene cuenta con otra contraseña. Usa la contraseña que ya tiene o un correo distinto.", "auth/invalid-credential": "Ese correo ya tiene cuenta con otra contraseña. Usa la contraseña que ya tiene o un correo distinto.", "auth/weak-password": "La contraseña es muy corta.", "permission-denied": "Ese correo ya pertenece al personal de otro restaurante.", "auth/operation-not-allowed": "El registro con correo está desactivado en Firebase."}[x.code];
-        err(m || "No se pudo crear: " + x.message); ok.disabled = false; ok.textContent = "Crear cuenta";
+        const m = {"auth/email-already-in-use": "Ese puesto ya tenía una cuenta con otro PIN que no está guardado. Usa otro código de restaurante o pide ayuda a soporte.", "auth/weak-password": "PIN no válido.", "auth/operation-not-allowed": "El registro con correo está desactivado en Firebase.", "permission-denied": "Esa cuenta pertenece a otro restaurante. Cambia el código del restaurante.", "auth/too-many-requests": "Demasiados intentos. Espera unos minutos."}[x.code];
+        err(m || "No se pudo guardar: " + (x.message || x.code)); ok.disabled = false; ok.textContent = cambiar ? "Guardar" : "Crear";
       }
     };
-    el.querySelector("#aN").focus();
+    el.querySelector(p ? "#aP" : "#aN").focus();
   });
 }
 

@@ -331,5 +331,10 @@
     return out;
   };
 
+  // Muestra en pantalla cualquier error inesperado (ayuda a reportar fallas).
+  const avisaError = m => { try { U.toast("⚠️ " + String(m || "Error").slice(0, 160)); } catch {} };
+  window.addEventListener("error", e => { if (e && e.message && !/ResizeObserver|Script error/.test(e.message)) avisaError(e.message); });
+  window.addEventListener("unhandledrejection", e => { const r = e && e.reason; avisaError(r && (r.code ? r.code + ": " : "") + (r && r.message || r)); });
+
   window.U = U;
 })();
