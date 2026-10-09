@@ -4,7 +4,7 @@
   --accent:#00984a; --accent-ink:#ffffff; --accent-soft:#d6efdf;
   --pool:#0096ff;
   --good:#0f9d4a; --good-bg:#d8f7e2; --warn:#b36b00; --warn-bg:#ffefc2; --bad:#d7141e; --bad-bg:#ffe0dd;
-  --cat-Bebidas:#0096ff; --cat-Comida:#9a6a2e; --cat-Snacks:#e0457b; --cat-Piscina:#ffab00;
+  --cat-Bebidas:#0096ff; --cat-Comida:#9a6a2e; --cat-Snacks:#e0457b; --cat-Piscina:#ffab00; --cat-Hospedaje:#7b5cd6;
   --shadow:0 1px 2px rgba(50,70,30,.08),0 4px 16px rgba(50,70,30,.08);
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -18,7 +18,7 @@
   --accent:#3ccf7a; --accent-ink:#04140a; --accent-soft:#173a25;
   --pool:#33adff;
   --good:#4fe08a; --good-bg:#153322; --warn:#ffc74d; --warn-bg:#3d2d0f; --bad:#ff7b72; --bad-bg:#431814;
-  --cat-Bebidas:#33adff; --cat-Comida:#d6a463; --cat-Snacks:#ff7aa6; --cat-Piscina:#ffbf2e;
+  --cat-Bebidas:#33adff; --cat-Comida:#d6a463; --cat-Snacks:#ff7aa6; --cat-Piscina:#ffbf2e; --cat-Hospedaje:#a48cf0;
   --shadow:0 1px 2px rgba(0,0,0,.35);
 }}
 *{box-sizing:border-box}

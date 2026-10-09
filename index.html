@@ -12,7 +12,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=9"></script>
+<script>
+// Guarda las pantallas en el celular para que la app abra aunque no haya internet (va antes de Firebase).
+if (navigator.serviceWorker && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+<script src="backend.js?v=11"></script>
 <style>
 :root{
   --bg:#f5f7ee;--surface:#fff;--surface-2:#e5eed8;--line:#d3dfc2;
@@ -237,7 +241,7 @@ const POR_ROL = {
   mesero: ["mesas"],
   cocina: ["cocina"]
 };
-const V = "?v=9";
+const V = "?v=11";
 const frames = {};
 let permitidas = [];
 function openFrame(key){

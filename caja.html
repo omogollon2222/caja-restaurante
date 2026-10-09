@@ -158,8 +158,8 @@ textarea.notes{width:100%;min-height:64px;padding:9px 10px;border:1px solid var(
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=9"></script>
-<script src="comun.js?v=9"></script>
+<script src="backend.js?v=11"></script>
+<script src="comun.js?v=11"></script>
 <style>.embedded header.top{display:none}.pull{margin:2px 0 10px}</style>
 </head>
 <body>
@@ -591,8 +591,8 @@ async function subirDrive(auto){
     const v60=await db.collection("sales").where("date",">=",U.addDays(U.todayKey(),-60)).get();
     await U.drive.enviar(db,{sub:"Inventario",nombre:"Inventario "+selDate,tipo:"hoja",filas:U.filasInventario(products,U.ventasDe(v60.docs))});
     const vd=await db.collection("sales").where("date","==",selDate).get();
-    const filas=[["Hora","Cuenta","Mesero","Cliente","Cédula","Código","Producto","Categoría","Cantidad","Precio","Subtotal","Pago"]];
-    U.ventasDe(vd.docs).sort((a,b)=>a.ts-b.ts).forEach(v=>v.items.forEach(i=>filas.push([U.hhmm(v.ts),v.mesa||"",v.mes?v.mes.n:"",v.cli?v.cli.n:"",v.cli?v.cli.ced:"",i.c,i.n,U.catName(i.k),i.q,i.p,U.r2(i.q*i.p),v.pago||""])));
+    const filas=[["Hora","Cuenta","Mesero","Cliente","Cédula","Código","Producto","Categoría","Cantidad","Precio","Subtotal","Pago","Nota"]];
+    U.ventasDe(vd.docs).sort((a,b)=>a.ts-b.ts).forEach(v=>v.items.forEach(i=>filas.push([U.hhmm(v.ts),v.mesa||"",v.mes?v.mes.n:"",v.cli?v.cli.n:"",v.cli?v.cli.ced:"",i.c,i.n,U.catName(i.k),i.q,i.p,U.r2(i.q*i.p),v.pago||"",i.nota||""])));
     await U.drive.enviar(db,{sub:"Ventas",nombre:"Ventas "+selDate,tipo:"hoja",filas});
     rmsg("Guardado en Drive: resumen PDF, inventario y ventas del "+U.fmtDay(selDate)+" ✔");
   }catch(e){rmsg("");toast("Drive: "+e.message);}

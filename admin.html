@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=9">
+<link rel="stylesheet" href="estilo.css?v=11">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=9"></script>
-<script src="comun.js?v=9"></script>
+<script src="backend.js?v=11"></script>
+<script src="comun.js?v=11"></script>
 <style>
 .vivo{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
 .vivo i{width:8px;height:8px;border-radius:50%;background:var(--good);animation:lat 2s infinite}
@@ -284,7 +284,7 @@ function alta(slot, cambiar){
   U.sheet(`<h2>${cambiar ? "Cambiar PIN · " : "Crear "}${slot.t}</h2>
     <form class="fgrid" id="aF">
       <label class="field full"><span>Nombre de la persona (aparece en cuentas y reportes)</span><input class="inp" id="aN" value="${esc(p ? p.nombre : "")}" required></label>
-      <label class="field full"><span>PIN (solo números, de 4 a 6 recomendado)</span><input class="inp mono" id="aP" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" style="font-size:22px;letter-spacing:.3em"></label>
+      <label class="field full"><span>PIN (exactamente 6 números)</span><input class="inp mono" id="aP" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" style="font-size:22px;letter-spacing:.3em"></label>
       <p class="err full" id="aErr"></p>
       <div class="acts full"><button type="button" class="btn" id="aX">Cancelar</button><button class="btn pri" id="aOk">${cambiar ? "Guardar" : "Crear"}</button></div>
     </form>`, (el, close) => {
@@ -295,7 +295,7 @@ function alta(slot, cambiar){
       const n = el.querySelector("#aN").value.trim(), pin = el.querySelector("#aP").value.trim();
       const err = t => el.querySelector("#aErr").textContent = t;
       if (!n) return err("Escribe el nombre.");
-      if (!/^\d{1,6}$/.test(pin)) return err("El PIN deben ser números (hasta 6).");
+      if (!/^\d{6}$/.test(pin)) return err("El PIN debe tener exactamente 6 números.");
       const otro = Object.entries(S.pins).find(([k, v]) => k !== slot.id && v.pin === pin && S.staff[k]);
       if (otro) return err("Ese PIN ya lo usa otro puesto; elige uno distinto.");
       if (!codigo()) return err("Primero guarda el código del restaurante.");
@@ -356,8 +356,8 @@ $("#btnVenDrive").onclick = async () => {
   try {
     const mes = todayKey().slice(0, 7);
     const snap = await api.collection("sales").where("date", ">=", mes + "-01").get();
-    const filas = [["Fecha", "Hora", "Cuenta", "Mesero", "Cliente", "Cédula", "Código", "Producto", "Categoría", "Cantidad", "Precio", "Subtotal", "Pago"]];
-    U.ventasDe(snap.docs).sort((a, b) => a.ts - b.ts).forEach(v => v.items.forEach(i => filas.push([v._date, hhmm(v.ts), v.mesa || "", v.mes ? v.mes.n : "", v.cli ? v.cli.n : "", v.cli ? v.cli.ced : "", i.c, i.n, U.catName(i.k), i.q, i.p, U.r2(i.q * i.p), v.pago || ""])));
+    const filas = [["Fecha", "Hora", "Cuenta", "Mesero", "Cliente", "Cédula", "Código", "Producto", "Categoría", "Cantidad", "Precio", "Subtotal", "Pago", "Nota"]];
+    U.ventasDe(snap.docs).sort((a, b) => a.ts - b.ts).forEach(v => v.items.forEach(i => filas.push([v._date, hhmm(v.ts), v.mesa || "", v.mes ? v.mes.n : "", v.cli ? v.cli.n : "", v.cli ? v.cli.ced : "", i.c, i.n, U.catName(i.k), i.q, i.p, U.r2(i.q * i.p), v.pago || "", i.nota || ""])));
     const r = await U.drive.enviar(api, {sub: "Ventas", nombre: "Ventas " + mes, tipo: "hoja", filas});
     U.toast(r.sinConfirmar ? "Ventas enviadas a Drive" : "Ventas del mes guardadas en Drive ✔");
   } catch (e) { U.toast(e.message); }

@@ -24,7 +24,7 @@
   U.lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   U.cleanCode = s => String(s || "").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
 
-  U.CATS = ["Bebidas", "Comida", "Snacks", "Piscina"];
+  U.CATS = ["Bebidas", "Comida", "Snacks", "Piscina", "Hospedaje"];
   U.catName = c => c === "Comida" ? "Platos a la carta" : c;
   U.vaACocina = k => k === "Comida";
   U.PAGOS = ["Efectivo", "Transferencia", "Tarjeta"];
@@ -166,7 +166,7 @@
 
   // ---------- inventario ----------
   U.stockDe = (p, ventas) => {
-    if (!p || p.track === false || p.cat === "Comida") return null;
+    if (!p || p.track === false || p.cat === "Comida" || p.cat === "Hospedaje") return null;
     let sold = 0;
     ventas.forEach(s => { if (s.ts > (p.baseAt || 0)) s.items.forEach(it => { if (it.c === p.code) sold += it.q; }); });
     return (Number(p.stockBase) || 0) - sold;
