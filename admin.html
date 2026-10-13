@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=11">
+<link rel="stylesheet" href="estilo.css?v=12">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="backend.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 <style>
 .vivo{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
 .vivo i{width:8px;height:8px;border-radius:50%;background:var(--good);animation:lat 2s infinite}
@@ -145,7 +145,7 @@ api.collection("orders").where("est", "==", "abierta").onSnapshot(s => { const m
 api.collection("orders").where("coc", "==", true).onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = {id: d.id, ...d.data()}); S.enCocina = m; render(); });
 api.collection("products").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.products = m; render(); });
 api.collection("sales").where("date", ">=", addDays(todayKey(), -60)).onSnapshot(s => { S.ventas60 = U.ventasDe(s.docs); render(); });
-api.collection("staff").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.staff = m; renderPersonal(); }, () => renderPersonal());
+api.collection("staff").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.staff = m; S.staffListo = true; renderPersonal(); }, () => renderPersonal());
 api.doc("config/general").onSnapshot(s => { S.cfg = s.exists ? s.data() : {}; llenaCfg(); render(); if (typeof renderPersonal === "function") renderPersonal(); }, () => {});
 api.doc("config/drive").onSnapshot(s => { S.drive = s.exists ? s.data() : null; U.drive._cfg = S.drive && S.drive.url ? S.drive : null; llenaDrive(); }, () => {});
 $("#dia").value = S.dia; $("#dia").max = todayKey();
@@ -235,56 +235,89 @@ $("#btnWa").onclick = () => {
 };
 
 // ---------- personal (puesto + PIN) ----------
+// Desde v12 el PIN no se guarda en ningún lado. Cambiar el PIN crea una cuenta nueva para el puesto
+// (versión g en codigos/{codigo}) y la anterior deja de servir, incluso en celulares con sesión abierta.
 const esDueno = ctx.dueno;
-S.pins = {};
-if (esDueno) api.collection("pins").onSnapshot(s => { const m = {}; s.docs.forEach(d => m[d.id] = d.data()); S.pins = m; renderPersonal(); }, () => {});
+S.reg = null; // codigos/{codigo}: {rest, g:{puesto: versión}}
 const codigo = () => App.limpiaCodigo(S.cfg.codigo || "");
+const regRef = c => App.fs.collection("codigos").doc(c);
+let migrado = false, regVisto = "";
+async function asegurarRegistro(){
+  if (!esDueno || !codigo() || regVisto === codigo()) return;
+  regVisto = codigo();
+  try {
+    const s = await regRef(codigo()).get();
+    if (!s.exists) { await regRef(codigo()).set({rest: ctx.rest, g: {}}); S.reg = {rest: ctx.rest, g: {}}; }
+    else S.reg = s.data();
+    if (S.reg.rest !== ctx.rest) U.toast("⚠️ El código " + codigo() + " ya lo usa otro restaurante. Quita el personal y elige otro código.");
+  } catch (e) { regVisto = ""; }
+  renderPersonal();
+}
+// Los PIN que guardaba la v11 se borran; solo se recuerda si eran cortos para pedir cambiarlos.
+async function migrarPins(){
+  if (!esDueno || migrado) return; migrado = true;
+  try {
+    const s = await api.collection("pins").get();
+    for (const d of s.docs) {
+      const pin = String((d.data() || {}).pin || "");
+      if (S.staff[d.id]) await api.doc("staff/" + d.id).set({pinCorto: pin.length < 6}, {merge: true}).catch(() => {});
+      await d.ref.delete().catch(() => {});
+    }
+  } catch {}
+}
 function renderPersonal(){
   const hay = Object.keys(S.staff).length > 0;
+  if (esDueno) { asegurarRegistro(); if (S.staffListo) migrarPins(); }
   if (!(document.activeElement && document.activeElement.id === "codRest")) $("#codRest").value = S.cfg.codigo || App.limpiaCodigo(ctx.r.nombre || "");
   $("#codRest").disabled = !esDueno || (hay && !!S.cfg.codigo); $("#btnCod").hidden = !esDueno || (hay && !!S.cfg.codigo);
-  $("#codNota").textContent = !S.cfg.codigo ? (esDueno ? "Primero guarda el código del restaurante; luego crea los puestos." : "") : hay ? "Código: " + codigo() + ". Para cambiarlo, primero quita todas las cuentas del personal." : "Código: " + codigo();
-  $("#persNota").textContent = esDueno ? "Entrega a cada persona: la dirección de la app, el código del restaurante, su puesto y su PIN. Si olvida el PIN, aquí lo puedes ver o cambiar." : "Solo el dueño puede crear, cambiar o quitar cuentas del personal.";
+  $("#codNota").textContent = !S.cfg.codigo ? (esDueno ? "Primero guarda el código del restaurante (mejor si no es fácil de adivinar, ej. quintajosaid58); luego crea los puestos." : "") : hay ? "Código: " + codigo() + ". Para cambiarlo, primero quita todas las cuentas del personal." : "Código: " + codigo();
+  $("#persNota").textContent = esDueno ? "Entrega a cada persona: la dirección de la app, el código del restaurante, su puesto y su PIN. El PIN no se guarda: si alguien lo olvida o deja de trabajar, toca Cambiar PIN y el anterior deja de funcionar." : "Solo el dueño puede crear, cambiar o quitar cuentas del personal.";
   $("#slots").innerHTML = `<div class="slot"><b>Dueño</b><span class="who">${esc(ctx.dueno ? ctx.email + " (tú, entras con correo)" : "—")}</span><span class="pill ok">Todo</span></div>` +
-    App.SLOTS.map(s => { const p = S.staff[s.id]; const pin = S.pins[s.id] && S.pins[s.id].pin;
-      return `<div class="slot"><b>${s.t}</b><span class="who">${p ? `${esc(p.nombre)}${esDueno && pin ? ` <span class="muted small">· PIN <span class="mono" data-pinver="${s.id}">••••</span></span>` : ""}` : '<span class="muted">Sin asignar</span>'}</span>
+    App.SLOTS.map(s => { const p = S.staff[s.id];
+      return `<div class="slot"><b>${s.t}</b><span class="who">${p ? `${esc(p.nombre)}${p.pinCorto ? ` <span class="pill low" title="Este PIN tiene menos de 6 números y es fácil de adivinar">PIN corto: cámbialo</span>` : ""}` : '<span class="muted">Sin asignar</span>'}</span>
       <span class="row" style="justify-content:flex-end">${esDueno ? (p ? `<button class="btn sm" data-cambiar="${s.id}">Cambiar PIN</button><button class="btn sm danger" data-quitar="${s.id}">Quitar</button>` : `<button class="btn sm pri" data-alta="${s.id}" ${S.cfg.codigo ? "" : "disabled"}>Crear</button>`) : ""}</span></div>`; }).join("");
 }
-$("#fCodigo").onsubmit = e => {
+$("#fCodigo").onsubmit = async e => {
   e.preventDefault();
   const c = App.limpiaCodigo($("#codRest").value);
   if (c.length < 3 || c.length > 24) { U.toast("El código debe tener de 3 a 24 letras o números, sin espacios."); return; }
-  api.doc("config/general").set({codigo: c}, {merge: true}).then(() => U.toast("Código guardado: " + c), er => U.toast(er.message));
+  if (Object.keys(S.staff).length) { U.toast("Primero quita todas las cuentas del personal."); return; }
+  try {
+    const s = await regRef(c).get();
+    if (s.exists && s.data().rest !== ctx.rest) { U.toast("Ese código ya lo usa otro restaurante. Elige otro."); return; }
+    if (!s.exists) await regRef(c).set({rest: ctx.rest, g: {}});
+    const viejo = codigo();
+    if (viejo && viejo !== c) await regRef(viejo).delete().catch(() => {});
+    await api.doc("config/general").set({codigo: c}, {merge: true});
+    regVisto = ""; U.toast("Código guardado: " + c);
+  } catch (er) { U.toast(er.message); }
 };
 $("#slots").onclick = e => {
-  const a = e.target.closest("[data-alta]"), q = e.target.closest("[data-quitar]"), c = e.target.closest("[data-cambiar]"), v = e.target.closest("[data-pinver]");
-  if (v) { v.textContent = v.textContent.includes("•") ? (S.pins[v.dataset.pinver] || {}).pin || "" : "••••"; return; }
+  const a = e.target.closest("[data-alta]"), q = e.target.closest("[data-quitar]"), c = e.target.closest("[data-cambiar]");
   if (a) alta(App.SLOTS.find(s => s.id === a.dataset.alta));
   if (c) alta(App.SLOTS.find(s => s.id === c.dataset.cambiar), true);
-  if (q) { if (!U.confirmar(q, "¿Quitar acceso?")) return; const p = S.staff[q.dataset.quitar]; const b = App.fs.batch(); b.delete(api.doc("staff/" + q.dataset.quitar)); if (p.uid) b.delete(App.fs.collection("miembros").doc(p.uid)); b.commit().then(() => U.toast("Acceso quitado"), er => U.toast(er.message)); }
+  if (q) { if (!U.confirmar(q, "¿Quitar acceso?")) return; const p = S.staff[q.dataset.quitar]; const b = App.fs.batch(); b.delete(api.doc("staff/" + q.dataset.quitar)); if (p.uid) b.delete(App.fs.collection("miembros").doc(p.uid)); b.commit().then(() => U.toast("Acceso quitado. Esa persona ya no puede entrar."), er => U.toast(er.message)); }
 };
-async function cuentaAuth(email, pinNuevo, pinViejo){
+// Crea la cuenta del puesto. Si la versión ya existe (cuenta de antes), prueba la siguiente.
+async function cuentaAuth(slot, pin, desde){
   const sec = firebase.apps.find(a => a.name === "alta") || firebase.initializeApp(window.FIREBASE_CONFIG, "alta");
   const au = sec.auth();
   try {
-    let cred;
-    try { cred = await au.createUserWithEmailAndPassword(email, App.clavePin(pinNuevo)); }
-    catch (x) {
-      if (x.code !== "auth/email-already-in-use") throw x;
-      // El puesto ya tuvo cuenta: se entra con el PIN anterior (o el nuevo) y se cambia.
-      try { cred = await au.signInWithEmailAndPassword(email, App.clavePin(pinViejo || pinNuevo)); }
-      catch { if (!pinViejo) throw x; cred = await au.signInWithEmailAndPassword(email, App.clavePin(pinNuevo)); }
-      if (pinViejo && pinViejo !== pinNuevo) await cred.user.updatePassword(App.clavePin(pinNuevo));
+    for (let gen = desde; gen < desde + 10; gen++) {
+      const email = App.correoPersonal(slot, codigo(), gen);
+      try { const cred = await au.createUserWithEmailAndPassword(email, App.clavePin(pin)); return {uid: cred.user.uid, email, gen}; }
+      catch (x) { if (x.code !== "auth/email-already-in-use") throw x; }
     }
-    return cred.user.uid;
+    throw new Error("No se pudo crear la cuenta del puesto. Pide ayuda a soporte.");
   } finally { await au.signOut().catch(() => {}); }
 }
 function alta(slot, cambiar){
-  const p = S.staff[slot.id]; const pinViejo = S.pins[slot.id] && S.pins[slot.id].pin;
+  const p = S.staff[slot.id];
   U.sheet(`<h2>${cambiar ? "Cambiar PIN · " : "Crear "}${slot.t}</h2>
     <form class="fgrid" id="aF">
       <label class="field full"><span>Nombre de la persona (aparece en cuentas y reportes)</span><input class="inp" id="aN" value="${esc(p ? p.nombre : "")}" required></label>
-      <label class="field full"><span>PIN (exactamente 6 números)</span><input class="inp mono" id="aP" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" style="font-size:22px;letter-spacing:.3em"></label>
+      <label class="field full"><span>PIN nuevo (exactamente 6 números, no uses 123456 ni fechas)</span><input class="inp mono" id="aP" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" style="font-size:22px;letter-spacing:.3em"></label>
+      ${cambiar ? '<p class="muted small full" style="margin:0">El PIN anterior deja de funcionar en cuanto guardes, también en el celular donde esté abierta la sesión.</p>' : ""}
       <p class="err full" id="aErr"></p>
       <div class="acts full"><button type="button" class="btn" id="aX">Cancelar</button><button class="btn pri" id="aOk">${cambiar ? "Guardar" : "Crear"}</button></div>
     </form>`, (el, close) => {
@@ -296,22 +329,24 @@ function alta(slot, cambiar){
       const err = t => el.querySelector("#aErr").textContent = t;
       if (!n) return err("Escribe el nombre.");
       if (!/^\d{6}$/.test(pin)) return err("El PIN debe tener exactamente 6 números.");
-      const otro = Object.entries(S.pins).find(([k, v]) => k !== slot.id && v.pin === pin && S.staff[k]);
-      if (otro) return err("Ese PIN ya lo usa otro puesto; elige uno distinto.");
+      if (/^(\d)\1{5}$/.test(pin) || "0123456789".includes(pin) || "9876543210".includes(pin)) return err("Ese PIN es muy fácil de adivinar. Elige otro.");
       if (!codigo()) return err("Primero guarda el código del restaurante.");
       const ok = el.querySelector("#aOk"); ok.disabled = true; ok.textContent = "Guardando…";
       try {
-        const email = App.correoPersonal(slot.id, codigo());
-        const uid = await cuentaAuth(email, pin, pinViejo);
+        const reg = (await regRef(codigo()).get()).data() || {rest: ctx.rest, g: {}};
+        if (reg.rest !== ctx.rest) throw {code: "permission-denied"};
+        const actual = Number((reg.g || {})[slot.id]) || 0;
+        const {uid, email, gen} = await cuentaAuth(slot.id, pin, p || cambiar ? actual + 1 : actual);
         const b = App.fs.batch();
-        b.set(api.doc("pins/" + slot.id), {pin});
-        b.set(api.doc("staff/" + slot.id), {uid, email, nombre: n, rol: slot.rol, alta: (p && p.alta) || Date.now()});
+        b.set(api.doc("staff/" + slot.id), {uid, email, nombre: n, rol: slot.rol, alta: (p && p.alta) || Date.now(), pinCorto: false});
         b.set(App.fs.collection("miembros").doc(uid), {rest: ctx.rest, slot: slot.id, rol: slot.rol, nombre: n});
+        if (p && p.uid && p.uid !== uid) b.delete(App.fs.collection("miembros").doc(p.uid));
+        b.set(regRef(codigo()), {rest: ctx.rest, g: {[slot.id]: gen}}, {merge: true});
         await b.commit();
         close();
-        U.sheet(`<h2>Listo ✔</h2><p style="margin:0">Entrégale estos datos a <b>${esc(n)}</b>:</p><div class="card small" style="line-height:1.8">Dirección: <b>${esc(location.origin + location.pathname.replace(/[^/]*$/, ""))}</b><br>Código del restaurante: <b class="mono">${esc(codigo())}</b><br>Puesto: <b>${slot.t}</b><br>PIN: <b class="mono">${esc(pin)}</b></div><div class="acts"><button class="btn pri" id="ok2">Listo</button></div>`, (e2, c2) => { e2.querySelector("#ok2").onclick = c2; });
+        U.sheet(`<h2>Listo ✔</h2><p style="margin:0">Entrégale estos datos a <b>${esc(n)}</b>. El PIN no se guarda: anótalo ahora o díselo en persona.</p><div class="card small" style="line-height:1.8">Dirección: <b>${esc(location.origin + location.pathname.replace(/[^/]*$/, ""))}</b><br>Código del restaurante: <b class="mono">${esc(codigo())}</b><br>Puesto: <b>${slot.t}</b><br>PIN: <b class="mono">${esc(pin)}</b></div><div class="acts"><button class="btn pri" id="ok2">Listo</button></div>`, (e2, c2) => { e2.querySelector("#ok2").onclick = c2; });
       } catch (x) {
-        const m = {"auth/email-already-in-use": "Ese puesto ya tenía una cuenta con otro PIN que no está guardado. Usa otro código de restaurante o pide ayuda a soporte.", "auth/weak-password": "PIN no válido.", "auth/operation-not-allowed": "El registro con correo está desactivado en Firebase.", "permission-denied": "Esa cuenta pertenece a otro restaurante. Cambia el código del restaurante.", "auth/too-many-requests": "Demasiados intentos. Espera unos minutos."}[x.code];
+        const m = {"auth/weak-password": "PIN no válido.", "auth/operation-not-allowed": "El registro con correo está desactivado en Firebase.", "permission-denied": "Ese código de restaurante lo usa otro restaurante. Cambia el código.", "auth/too-many-requests": "Demasiados intentos. Espera unos minutos."}[x.code];
         err(m || "No se pudo guardar: " + (x.message || x.code)); ok.disabled = false; ok.textContent = cambiar ? "Guardar" : "Crear";
       }
     };
@@ -334,6 +369,7 @@ $("#fDrive").onsubmit = e => {
   e.preventDefault();
   const url = $("#dUrl").value.trim();
   if (url && !/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { $("#dErr").textContent = "La URL debe empezar con https://script.google.com/"; return; }
+  if (url && $("#dTok").value.trim().length < 20) { $("#dErr").textContent = "La clave debe tener al menos 20 caracteres (la misma que pusiste en el script)."; return; }
   $("#dErr").textContent = "";
   api.doc("config/drive").set({url, token: $("#dTok").value.trim(), carpeta: $("#dCarp").value.trim()}).then(() => U.toast("Drive guardado"), er => U.toast(er.message));
 };

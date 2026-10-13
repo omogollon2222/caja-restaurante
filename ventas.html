@@ -2,8 +2,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="backend.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 </head><body>
 <title>Ventas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -699,6 +699,7 @@ $("#todayList").addEventListener("click", async e => {
   if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "¿Anular?"; b.classList.add("danger"); setTimeout(() => { if (b.isConnected) { b.dataset.armed = ""; b.textContent = "Anular"; b.classList.remove("danger"); } }, 3500); return; }
   const [docId, saleId] = b.dataset.void.split("|");
   const anulada = (S.salesDocs[docId] && (S.salesDocs[docId].sales||[]).find(x => x.id === saleId)) || {};
+  if (db) U.auditar(db, S.ctx, "venta-anulada", {venta: saleId || "", doc: docId || "", total: Number(anulada.total) || 0, pago: anulada.pago || "", items: (anulada.items || []).map(i => i.q + "x " + i.n).join(" | ").slice(0, 500)});
   if (anulada.ord && db) db.doc("orders/" + anulada.ord).update({est: "anulada", coc: false, anuladaPor: S.ctx ? S.ctx.nombre : ""}).catch(() => {});
   await chain("sale-append", async () => {
     const doc = S.salesDocs[docId]; if (!doc) return;
@@ -712,7 +713,7 @@ $("#btnCli").onclick = () => {
   sheet(`<h2>Cliente</h2><input class="inp" id="cB" placeholder="Buscar por cédula, nombre o celular" autocomplete="off"><div id="cR" style="max-height:240px;overflow:auto"></div>
     <details id="cNv"><summary style="font-weight:600;cursor:pointer;padding:6px 0">+ Registrar cliente nuevo</summary>
     <form class="fgrid" id="cF" style="margin-top:8px"><label class="field" style="grid-column:1/-1"><span>Nombre y apellido</span><input class="inp" id="cN"></label>
-    <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="cC" inputmode="numeric"></label><label class="field"><span>Celular</span><input class="inp mono" id="cT" inputmode="tel" placeholder="09…"></label>
+    <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="cC" inputmode="numeric"></label><label class="field"><span>Celular</span><input class="inp mono" id="cT" inputmode="tel" placeholder="09…"></label>${U.avisoPrivacidad("cP")}
     <p class="scan-hint err" id="cE" style="grid-column:1/-1;margin:0"></p><div class="acts" style="grid-column:1/-1"><button class="btn pri">Guardar y usar</button></div></form></details>
     <div class="acts">${S.cli ? '<button class="btn danger" id="cQ" style="margin-right:auto">Quitar cliente</button>' : ""}<button class="btn" id="cX">Cerrar</button></div>`, (el, close) => {
     const pinta = () => { const q = el.querySelector("#cB").value.trim().toLowerCase();
@@ -729,7 +730,7 @@ $("#btnCli").onclick = () => {
       if (!n) return er("Escribe el nombre."); if (ced.length < 6) return er("Escribe la cédula, RUC o pasaporte.");
       if (/^\d{10}$/.test(ced) && !U.cedulaValida(ced) && el.querySelector("#cE").dataset.ok !== ced) { el.querySelector("#cE").dataset.ok = ced; return er("La cédula no parece válida. Revisa o toca Guardar otra vez."); }
       if (cel && !/^0\d{9}$/.test(cel)) return er("El celular debe tener 10 dígitos.");
-      const c = {ced, n, cel, alta: (S.clients[ced] && S.clients[ced].alta) || Date.now(), por: S.ctx ? S.ctx.nombre : ""};
+      const c = {ced, n, cel, alta: (S.clients[ced] && S.clients[ced].alta) || Date.now(), por: S.ctx ? S.ctx.nombre : "", ...U.consentimiento(el.querySelector("#cP").checked, S.clients[ced])};
       S.clients[ced] = c; if (db) db.doc("clients/" + ced).set(c, {merge: true}).catch(() => {});
       S.cli = {ced, n}; renderCli(); close(); toast("Cliente registrado"); };
   });
@@ -844,6 +845,8 @@ function sheet(html, onMount){
 }
 function openProduct(p, presetCat){
   const isNew = !p;
+  const soloStock = !!(S.ctx && S.ctx.rol === "caja"); // Caja carga stock; precios y productos los maneja el administrador.
+  if (isNew && soloStock) { toast("Solo el administrador puede crear productos."); return; }
   if (!p) { const c = presetCat || "Bebidas"; p = {code: nextCode(c), name:"", cat:c, price:"", stockBase:0, min: noStock(c) ? 0 : 5, track: !noStock(c), active:true}; }
   sheet(`<h2>${isNew ? (isDish(p) ? "Nuevo plato a la carta" : "Nuevo producto") : "Editar " + esc(p.code)}</h2>
     <form id="pf" class="fgrid">
@@ -863,6 +866,7 @@ function openProduct(p, presetCat){
       const syncCat = () => { const dish = noStock(el.querySelector("#f-cat").value);
         el.querySelectorAll(".stk").forEach(x => x.hidden = dish); el.querySelector(".dishnote").hidden = !dish; };
       syncCat();
+      if (soloStock) { ["#f-name", "#f-price", "#f-cat", "#f-active", "#f-del"].forEach(s => { const x = el.querySelector(s); if (x) { x.disabled = true; if (s === "#f-del") x.hidden = true; } }); }
       el.querySelector("#f-cat").onchange = () => { syncCat();
         if (isNew) { const fc = el.querySelector("#f-code"); if (!fc.dataset.touched) fc.value = nextCode(el.querySelector("#f-cat").value); } };
       el.querySelector("#f-code").addEventListener("input", e => { e.target.dataset.touched = "1"; });
@@ -886,7 +890,7 @@ function openProduct(p, presetCat){
         if (isNew) { np.stockBase = parseInt(el.querySelector("#f-stock").value)||0; np.baseAt = Date.now(); }
         else if (track && p.track === false) { np.stockBase = 0; np.baseAt = Date.now(); }
         try { await store.setProduct(np); close(); toast(isNew ? "Producto creado" : "Cambios guardados"); }
-        catch { err("No se pudo guardar. Revisa la conexión."); }
+        catch (e) { err(e && e.code === "permission-denied" ? "Tu puesto no puede cambiar precios, nombres ni crear productos." : "No se pudo guardar. Revisa la conexión."); }
       };
       el.querySelector(isNew ? "#f-code" : "#f-name").focus();
   });

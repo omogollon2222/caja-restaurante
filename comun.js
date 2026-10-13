@@ -95,6 +95,15 @@
   };
   U.limpiaCed = c => String(c || "").trim().toUpperCase().replace(/[^0-9A-Z]/g, "");
   U.limpiaCel = c => { let x = String(c || "").replace(/\D/g, ""); if (x.startsWith("593")) x = "0" + x.slice(3); return x; };
+
+  // ---------- protección de datos (LOPDP) ----------
+  // Aviso de privacidad y casilla de consentimiento para promociones, en todos los formularios de cliente.
+  U.avisoPrivacidad = (id, marcado) => `<label class="full" style="grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer"><input type="checkbox" id="${id}" ${marcado ? "checked" : ""} style="margin-top:2px;width:18px;height:18px;flex:none"><span>El cliente <b>acepta</b> recibir promociones por WhatsApp</span></label>
+    <p class="muted full" style="grid-column:1/-1;font-size:12px;line-height:1.4;margin:0">Aviso de privacidad: el nombre y la cédula se usan para registrar la venta y facturar; el celular, para contactar al cliente y, solo si acepta, para promociones. Los datos no se venden ni se comparten. El cliente puede pedir al administrador ver, corregir o borrar sus datos.</p>`;
+  // Campos de consentimiento: guarda cuándo cambió por última vez.
+  U.consentimiento = (acepta, previo) => ({ promo: !!acepta, promoT: previo && !!previo.promo === !!acepta && previo.promoT ? previo.promoT : Date.now() });
+  // Bitácora de acciones sensibles (anulaciones, borrado de clientes). Solo se agrega; la lee el dueño.
+  U.auditar = (api, ctx, tipo, detalle) => api.doc("audit/" + U.rid()).set({ t: Date.now(), tipo, por: (ctx && ctx.nombre) || "", uid: (ctx && ctx.uid) || "", ...detalle }).catch(() => {});
   U.waCel = c => { const x = U.limpiaCel(c); return x.startsWith("0") ? "593" + x.slice(1) : x; };
 
   // ---------- cuentas (pedidos) ----------

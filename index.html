@@ -16,7 +16,7 @@
 // Guarda las pantallas en el celular para que la app abra aunque no haya internet (va antes de Firebase).
 if (navigator.serviceWorker && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
-<script src="backend.js?v=11"></script>
+<script src="backend.js?v=12"></script>
 <style>
 :root{
   --bg:#f5f7ee;--surface:#fff;--surface-2:#e5eed8;--line:#d3dfc2;
@@ -194,9 +194,9 @@ $("#loginForm").addEventListener("submit", async e => {
     if (!codigo) { msg("Escribe el código del restaurante.", true); return; }
     if (!puesto) { msg("Elige tu puesto.", true); return; }
     if (!/^\d{1,6}$/.test(pin)) { msg("El PIN son números (hasta 6).", true); return; }
-    email = App.correoPersonal(puesto, codigo); pass = App.clavePin(pin);
     try { localStorage.setItem("puesto", puesto); } catch {}
     $("#enter").disabled = true; msg("Ingresando…");
+    email = App.correoPersonal(puesto, codigo, await App.genPuesto(codigo, puesto)); pass = App.clavePin(pin);
     try { await auth.signInWithEmailAndPassword(email, pass); try { localStorage.setItem("codigoRest", codigo); } catch {} codigoGuardado = codigo; msg(""); }
     catch (err) { msg(["auth/invalid-credential","auth/wrong-password","auth/user-not-found","auth/invalid-login-credentials"].includes(err.code) ? "PIN incorrecto, o ese puesto no tiene cuenta en este restaurante. Revisa el código del restaurante." : authErr(err.code), true); $("#pin").value = ""; }
     $("#enter").disabled = false;
@@ -215,7 +215,7 @@ $("#forgot").addEventListener("click", async () => {
   try { await auth.sendPasswordResetEmail(email); msg("Te enviamos un correo para crear una nueva contraseña."); }
   catch (err) { msg(authErr(err.code), true); }
 });
-const out = () => auth.signOut().then(() => { try { localStorage.removeItem("logo"); } catch {} location.reload(); });
+const out = async () => { if (await App.salir()) location.reload(); };
 $("#logout").onclick = out; $("#blockOut").onclick = out;
 
 function block(title, text){
@@ -241,7 +241,7 @@ const POR_ROL = {
   mesero: ["mesas"],
   cocina: ["cocina"]
 };
-const V = "?v=11";
+const V = "?v=12";
 const frames = {};
 let permitidas = [];
 function openFrame(key){

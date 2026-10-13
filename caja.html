@@ -158,8 +158,8 @@ textarea.notes{width:100%;min-height:64px;padding:9px 10px;border:1px solid var(
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="backend.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 <style>.embedded header.top{display:none}.pull{margin:2px 0 10px}</style>
 </head>
 <body>
@@ -293,7 +293,7 @@ function errMsg(e){
   if(c==="quota_exceeded")return"Se alcanzó el límite de registros guardados.";
   if(c==="invalid_argument")return"No tienes permiso para guardar en esta caja.";
   if(c==="resource_exhausted")return"Demasiados cambios seguidos. Espera unos segundos.";
-  if(c==="permission-denied")return"Tu suscripción no permite guardar cambios. Contacta a soporte.";
+  if(c==="permission-denied")return"Tu puesto no tiene permiso para esto (eliminar un cierre lo hace el administrador), o la suscripción venció.";
   return"No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
 }
 let toastT;

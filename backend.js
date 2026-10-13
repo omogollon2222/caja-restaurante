@@ -160,13 +160,40 @@
   // El personal entra con su puesto y un PIN. Por dentro, Firebase usa un correo y una clave
   // derivados del código del restaurante, el puesto y el PIN (nadie tiene que escribirlos).
   const limpiaCodigo = c => String(c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-  const correoPersonal = (slot, codigo) => slot + "." + limpiaCodigo(codigo) + "@personal.cajarestaurante.app";
+  // gen = versión de la cuenta del puesto. Cada cambio de PIN crea una cuenta nueva (gen + 1),
+  // así el PIN nunca se guarda y la cuenta anterior deja de servir. gen 0 = cuentas creadas hasta v11.
+  const correoPersonal = (slot, codigo, gen) => slot + (gen > 0 ? "-" + gen : "") + "." + limpiaCodigo(codigo) + "@personal.cajarestaurante.app";
   const clavePin = pin => "pin-" + String(pin) + "-cr";
+  // Lee la versión de la cuenta de un puesto (registro público codigos/{codigo}; no tiene datos personales).
+  async function genPuesto(codigo, slot) {
+    try {
+      const s = await fs.collection("codigos").doc(limpiaCodigo(codigo)).get();
+      return s.exists && s.data().g && s.data().g[slot] ? Number(s.data().g[slot]) || 0 : 0;
+    } catch { return 0; }
+  }
+
+  // Salir: si el celular se queda sin la sesión, también se borra la copia local de ventas y clientes.
+  async function salir() {
+    if (!navigator.onLine && (SYNC.pend || pendAnt)) {
+      if (!confirm("No hay internet y hay cambios sin enviar. Si sales ahora se pierden. ¿Salir igual?")) return false;
+    } else if (navigator.onLine) {
+      await Promise.race([fs.waitForPendingWrites().catch(() => {}), espera(4000)]);
+    }
+    try { await auth.signOut(); } catch {}
+    try { localStorage.removeItem("logo"); } catch {}
+    document.querySelectorAll("iframe").forEach(f => { try { f.src = "about:blank"; f.remove(); } catch {} });
+    await espera(300);
+    try { await fs.terminate(); await fs.clearPersistence(); }
+    catch {
+      try { const dbs = indexedDB.databases ? await indexedDB.databases() : []; dbs.forEach(d => { if (d.name && d.name.startsWith("firestore/")) indexedDB.deleteDatabase(d.name); }); } catch {}
+    }
+    return true;
+  }
 
   const goHome = () => { (window.top || window).location.href = "index.html"; return new Promise(() => {}); };
 
   window.App = {
-    auth, fs, ready, firstUser, SYNC, scoped, resolveCtx, activa, vence, ROLES, SLOTS, limpiaCodigo, correoPersonal, clavePin,
+    auth, fs, ready, firstUser, SYNC, scoped, resolveCtx, activa, vence, ROLES, SLOTS, limpiaCodigo, correoPersonal, clavePin, genPuesto, salir,
     async ctx() {
       const u = await firstUser;
       const r = await resolveCtx(u);

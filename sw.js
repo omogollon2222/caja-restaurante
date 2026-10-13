@@ -1,7 +1,7 @@
 // Service worker: guarda las pantallas de la app en el celular para que abran sin internet.
 // Los datos (ventas, mesas, inventario) los maneja Firestore con su propia copia local;
 // este archivo solo guarda los archivos de la app (HTML, JS, estilos, logo y la librería de Firebase).
-const CACHE = "caja-restaurante-v11";
+const CACHE = "caja-restaurante-v12";
 const APP = [
   "./", "index.html", "ventas.html", "caja.html", "mesas.html", "cocina.html", "admin.html", "clientes.html",
   "backend.js", "comun.js", "config.js", "estilo.css", "logo-quinta-josaid.png"

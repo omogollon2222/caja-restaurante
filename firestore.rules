@@ -1,12 +1,18 @@
-// Copia de las reglas publicadas en Firebase (Firestore > Reglas). Actualizado 5-oct-2026.
+// Copia de las reglas publicadas en Firebase (Firestore > Reglas). Versión 12 (12-oct-2026).
 // Si cambias las reglas en la consola, actualiza también este archivo.
 //
 // - Cada restaurante solo ve sus propios datos (restaurantes/{uidDueño}).
-// - El personal (hasta 5 meseros, cocina, caja y un administrador) entra con su puesto y PIN; cada puesto
-//   es una cuenta propia enlazada en miembros/{uidPersona}. Solo el dueño crea, cambia o quita personal
-//   y solo él puede ver los PIN (colección pins).
-// - Nadie puede editar la ficha del restaurante (nombre, vence, logo): solo el administrador desde la consola.
+// - Los permisos por puesto se aplican AQUÍ (no solo en las pantallas):
+//     dueño y Administrador: todo lo del restaurante (config, personal y PIN: solo el dueño).
+//     Caja: ventas, anulaciones, cierres de caja, cuentas, clientes y stock (no cambia precios ni borra).
+//     Mesero: cuentas y clientes; sus ventas solo se agregan a su propio documento del día, nunca se borran.
+//     Cocina: solo ve las cuentas y cambia el estado de los pedidos; no ve clientes ni ventas.
+// - El token de Google Drive (config/drive) solo lo leen el dueño, el Administrador y Caja.
+// - Las anulaciones quedan en la bitácora "audit" (solo se agrega; la lee el dueño/Administrador).
+// - Nadie puede editar la ficha del restaurante (nombre, vence, logo): solo el proveedor desde la consola.
 // - Con la suscripción vencida se pueden ver los datos, pero no registrar ni borrar nada.
+// - codigos/{codigo}: registro público y único del código del restaurante (sin datos personales),
+//   necesario para que el personal ingrese con puesto + PIN.
 // - Todo lo que no está aquí queda cerrado.
 rules_version = '2';
 service cloud.firestore {
@@ -19,6 +25,9 @@ service cloud.firestore {
     function esDueno(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
+    function miembro() {
+      return get(/databases/$(database)/documents/miembros/$(request.auth.uid)).data;
+    }
     function esPersonal(uid) {
       let ruta = /databases/$(database)/documents/miembros/$(request.auth.uid);
       return request.auth != null && exists(ruta)
@@ -27,6 +36,36 @@ service cloud.firestore {
     }
     function accede(uid) {
       return esDueno(uid) || esPersonal(uid);
+    }
+    // El dueño cuenta como Administrador.
+    function tieneRol(uid, roles) {
+      return esDueno(uid) || (esPersonal(uid) && miembro().rol in roles);
+    }
+    function soloRol(uid, rol) {
+      return esPersonal(uid) && miembro().rol == rol;
+    }
+    function nuevo() {
+      return request.resource.data;
+    }
+    function textoCorto(campo, max) {
+      return !(campo in nuevo()) || (nuevo()[campo] is string && nuevo()[campo].size() <= max);
+    }
+
+    // ---------- validaciones ----------
+    function productoValido() {
+      return textoCorto('name', 120) && textoCorto('cat', 40)
+        && (!('price' in nuevo()) || (nuevo().price is number && nuevo().price >= 0 && nuevo().price <= 100000));
+    }
+    function ventaValida() {
+      return nuevo().sales is list && nuevo().sales.size() <= 3000 && textoCorto('date', 10);
+    }
+    function clienteValido() {
+      return nuevo().ced is string && nuevo().ced.size() >= 3 && nuevo().ced.size() <= 20
+        && textoCorto('n', 120) && textoCorto('cel', 15)
+        && (!('promo' in nuevo()) || nuevo().promo is bool);
+    }
+    function cuentaValida() {
+      return !('est' in nuevo()) || nuevo().est in ['abierta', 'cerrada', 'anulada'];
     }
 
     match /miembros/{persona} {
@@ -37,19 +76,82 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.rest == request.auth.uid;
     }
 
+    // Código del restaurante -> versión de la cuenta de cada puesto. Se lee antes de iniciar sesión.
+    match /codigos/{codigo} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && request.resource.data.rest == request.auth.uid
+        && codigo.matches('^[a-z0-9]{3,24}$')
+        && exists(/databases/$(database)/documents/restaurantes/$(request.auth.uid));
+      allow update: if request.auth != null && resource.data.rest == request.auth.uid && request.resource.data.rest == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.rest == request.auth.uid;
+    }
+
     match /restaurantes/{uid} {
       allow read: if accede(uid);
       allow write: if false;
 
-      match /{coleccion}/{docId} {
-        allow read: if (accede(uid)
-          && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'staff', 'config'])
-          || (esDueno(uid) && coleccion == 'pins');
-        allow write: if activo(uid) && (
-          (esDueno(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients', 'config'])
-          || (esDueno(uid) && coleccion in ['staff', 'pins'] && docId in ['admin', 'm1', 'm2', 'm3', 'm4', 'm5', 'cocina', 'caja'])
-          || (esPersonal(uid) && coleccion in ['products', 'sales', 'days', 'orders', 'clients'])
-        );
+      match /products/{id} {
+        allow read: if accede(uid);
+        allow create: if activo(uid) && tieneRol(uid, ['admin']) && productoValido();
+        // Caja puede cargar o ajustar stock, pero no cambiar precio, nombre ni categoría.
+        allow update: if activo(uid) && productoValido() && (tieneRol(uid, ['admin'])
+          || (soloRol(uid, 'caja') && !nuevo().diff(resource.data).affectedKeys().hasAny(['price', 'name', 'cat', 'active', 'code'])));
+        allow delete: if activo(uid) && tieneRol(uid, ['admin']);
+      }
+
+      match /sales/{docId} {
+        allow read: if tieneRol(uid, ['admin', 'caja', 'mesero']);
+        allow create: if activo(uid) && ventaValida() && (tieneRol(uid, ['admin', 'caja'])
+          || (soloRol(uid, 'mesero') && docId.matches('^[0-9-]+_u' + request.auth.uid + '$')));
+        // Caja y Administrador pueden anular (queda en la bitácora). El mesero solo agrega ventas.
+        allow update: if activo(uid) && ventaValida() && (tieneRol(uid, ['admin', 'caja'])
+          || (soloRol(uid, 'mesero') && docId.matches('^[0-9-]+_u' + request.auth.uid + '$')
+              && nuevo().sales.hasAll(resource.data.sales)));
+        allow delete: if activo(uid) && tieneRol(uid, ['admin']);
+      }
+
+      match /days/{id} {
+        allow read: if tieneRol(uid, ['admin', 'caja']);
+        allow create, update: if activo(uid) && tieneRol(uid, ['admin', 'caja']);
+        allow delete: if activo(uid) && tieneRol(uid, ['admin']);
+      }
+
+      match /orders/{id} {
+        allow read: if accede(uid);
+        allow create: if activo(uid) && cuentaValida() && tieneRol(uid, ['admin', 'caja', 'mesero']);
+        allow update: if activo(uid) && cuentaValida() && (tieneRol(uid, ['admin', 'caja', 'mesero'])
+          || (soloRol(uid, 'cocina') && nuevo().diff(resource.data).affectedKeys().hasOnly(['rondas', 'coc'])));
+        allow delete: if activo(uid) && tieneRol(uid, ['admin']);
+      }
+
+      match /clients/{ced} {
+        allow read: if tieneRol(uid, ['admin', 'caja', 'mesero']);
+        allow create, update: if activo(uid) && clienteValido() && tieneRol(uid, ['admin', 'caja', 'mesero']);
+        allow delete: if activo(uid) && tieneRol(uid, ['admin']);
+      }
+
+      match /config/{id} {
+        allow read: if (id == 'general' && accede(uid))
+          || (id == 'drive' && tieneRol(uid, ['admin', 'caja']))
+          || tieneRol(uid, ['admin']);
+        allow write: if activo(uid) && esDueno(uid);
+      }
+
+      match /staff/{puesto} {
+        allow read: if accede(uid);
+        allow write: if activo(uid) && esDueno(uid) && puesto in ['admin', 'm1', 'm2', 'm3', 'm4', 'm5', 'cocina', 'caja'];
+      }
+
+      // PIN antiguos (v11 y anteriores). Desde v12 ya no se guardan; la app los borra al abrir Personal.
+      match /pins/{puesto} {
+        allow read, delete: if esDueno(uid);
+      }
+
+      // Bitácora: solo se agrega, nadie la cambia ni la borra.
+      match /audit/{id} {
+        allow read: if tieneRol(uid, ['admin']);
+        allow create: if activo(uid) && accede(uid) && nuevo().por is string && nuevo().t is number;
       }
     }
   }

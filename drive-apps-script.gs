@@ -1,6 +1,8 @@
 // Script de Google para que la app del restaurante guarde archivos en Google Drive.
 // 1) Pega este código en script.google.com (Proyecto nuevo) con la cuenta dueña de la carpeta.
-// 2) Cambia CLAVE por una palabra secreta y escribe la misma clave en la app (Administrador > Configuración y Drive).
+// 2) Cambia CLAVE por una clave larga y al azar (mínimo 20 letras y números, ej. generada con un gestor de
+//    contraseñas) y escribe la misma clave en la app (Administrador > Configuración y Drive).
+//    Mientras CLAVE siga siendo 'cambia-esta-clave' o sea corta, el script rechaza todo.
 // 3) Implementar > Nueva implementación > Aplicación web. Ejecutar como: Yo. Acceso: Cualquier usuario.
 // 4) Copia la URL de la aplicación web y pégala en la app.
 
@@ -9,8 +11,11 @@ const CARPETA = 'Quinta Josaid';
 
 function doPost(e) {
   try {
+    if (CLAVE === 'cambia-esta-clave' || CLAVE.length < 20) return salida_({ ok: false, error: 'Cambia la CLAVE del script por una de 20 caracteres o más' });
     const d = JSON.parse(e.postData.contents);
-    if (d.token !== CLAVE) return salida_({ ok: false, error: 'token' });
+    if (typeof d.token !== 'string' || d.token !== CLAVE) return salida_({ ok: false, error: 'token' });
+    const nombreOk = function (x) { return typeof x === 'string' && x.length > 0 && x.length <= 120 && !/[\/\\]/.test(x); };
+    if (!nombreOk(d.nombre) || (d.sub && !nombreOk(d.sub))) return salida_({ ok: false, error: 'nombre' });
     const raiz = carpeta_(CARPETA, null);
     const destino = carpeta_(d.sub || 'General', raiz);
     let archivo;

@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=11">
+<link rel="stylesheet" href="estilo.css?v=12">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="backend.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 <style>
 .cuentas{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .cta{text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow);position:relative}
@@ -215,6 +215,7 @@ function elegirCliente(actual, alElegir){
         <label class="field full"><span>Nombre y apellido</span><input class="inp" id="cN" required></label>
         <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="cC" inputmode="numeric" required></label>
         <label class="field"><span>Celular</span><input class="inp mono" id="cT" inputmode="tel" placeholder="09…"></label>
+        ${U.avisoPrivacidad("cP")}
         <p class="err full" id="cErr"></p>
         <div class="acts full"><button class="btn pri">Guardar y usar</button></div>
       </form></details>
@@ -240,7 +241,7 @@ function elegirCliente(actual, alElegir){
       if (/^\d{10}$/.test(ced) && !U.cedulaValida(ced) && el.querySelector("#cErr").dataset.ok !== ced) { el.querySelector("#cErr").dataset.ok = ced; return err("La cédula no parece válida. Revisa los números o toca Guardar otra vez para registrarla así."); }
       if (cel && !/^0\d{9}$/.test(cel)) return err("El celular debe tener 10 dígitos, ej. 0991234567.");
       const ya = S.clients[ced];
-      const c = {ced, n, cel: cel || (ya && ya.cel) || "", alta: (ya && ya.alta) || Date.now(), por: (ya && ya.por) || ctx.nombre};
+      const c = {ced, n, cel: cel || (ya && ya.cel) || "", alta: (ya && ya.alta) || Date.now(), por: (ya && ya.por) || ctx.nombre, ...U.consentimiento(el.querySelector("#cP").checked, ya)};
       S.clients[ced] = c;
       api.doc("clients/" + ced).set(c, {merge: true}).catch(er => U.toast("No se guardó el cliente: " + er.message));
       close(); alElegir({ced, n}); U.toast(ya ? "Cliente actualizado" : "Cliente registrado");

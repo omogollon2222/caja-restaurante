@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="estilo.css?v=11">
+<link rel="stylesheet" href="estilo.css?v=12">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script src="backend.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="backend.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 <style>
 .mbars{display:flex;align-items:flex-end;gap:4px;height:120px;border-bottom:1px solid var(--line)}
 .mbars div{flex:1;background:var(--accent);border-radius:4px 4px 0 0;min-height:0}
@@ -98,14 +98,23 @@ function ficha(ced){
       <label class="field full"><span>Nombre y apellido</span><input class="inp" id="fN" value="${esc(c ? c.n : "")}" required></label>
       <label class="field"><span>Cédula / RUC</span><input class="inp mono" id="fC" value="${esc(c ? c.ced : "")}" ${c ? "disabled" : ""} inputmode="numeric"></label>
       <label class="field"><span>Celular</span><input class="inp mono" id="fT" value="${esc(c ? c.cel || "" : "")}" inputmode="tel" placeholder="09…"></label>
+      ${U.avisoPrivacidad("fP", c && c.promo)}
       <p class="err full" id="fE"></p>
     </form>
     ${s ? `<div><div class="lbl" style="margin-bottom:6px">Comportamiento mensual</div><div class="tbl"><table><thead><tr><th>Mes</th><th class="r">Visitas</th><th class="r">Gastó</th><th class="r">Ticket prom.</th></tr></thead><tbody>${ms.slice().reverse().filter(m => s.mes[m]).map(m => `<tr><td>${MESES[+m.slice(5) - 1]} ${m.slice(0, 4)}</td><td class="r mono">${s.mes[m].vis}</td><td class="r mono">${money(s.mes[m].tot)}</td><td class="r mono">${money(s.mes[m].tot / s.mes[m].vis)}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Sin compras en los últimos 12 meses.</td></tr>`}</tbody></table></div></div>
       <p class="small" style="margin:0"><b>Le gusta:</b> ${fav.map(([n, q]) => esc(n) + " (" + q + ")").join(", ") || "—"}<br><b>Última visita:</b> ${s.ult ? U.longDay(s.ult) : "—"}</p>` : c ? `<p class="muted small">Todavía no tiene compras registradas.</p>` : ""}
-    <div class="acts">${c && c.cel ? `<a class="btn" style="margin-right:auto;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${U.waCel(c.cel)}">WhatsApp</a>` : ""}${c && ctx.rol === "admin" ? '<button class="btn danger" id="fDel">Eliminar</button>' : ""}<button class="btn" id="fX">Cerrar</button><button class="btn pri" id="fOk">Guardar</button></div>`, (el, close) => {
+    ${c ? `<p class="muted small" style="margin:0">Promociones: <b>${c.promo ? "acepta" : "no ha aceptado"}</b>${c.promoT ? " (desde " + U.fmtDay(U.dkey(c.promoT)) + ")" : ""}. ${c.promo ? "" : "Solo escríbele por temas de su consumo o reserva."}</p>` : ""}
+    <div class="acts">${c && c.cel ? `<a class="btn" style="margin-right:auto;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${U.waCel(c.cel)}">WhatsApp</a>` : ""}${c && ctx.rol === "admin" ? '<button class="btn" id="fExp" title="Derecho de acceso y portabilidad">Descargar sus datos</button><button class="btn danger" id="fDel">Eliminar</button>' : ""}<button class="btn" id="fX">Cerrar</button><button class="btn pri" id="fOk">Guardar</button></div>`, (el, close) => {
     el.querySelector("#fX").onclick = close;
     const del = el.querySelector("#fDel");
-    if (del) del.onclick = () => { if (!U.confirmar(del, "¿Eliminar cliente?")) return; api.doc("clients/" + c.ced).delete(); close(); U.toast("Cliente eliminado"); };
+    if (del) del.onclick = async () => {
+      if (!U.confirmar(del, "¿Borrar todo?")) return;
+      del.disabled = true; del.textContent = "Borrando…";
+      try { const n = await eliminarCliente(c); close(); U.toast("Cliente eliminado y quitado de " + n + (n === 1 ? " venta" : " ventas")); }
+      catch (e) { U.toast("No se pudo eliminar: " + e.message); del.disabled = false; del.textContent = "Eliminar"; }
+    };
+    const exp = el.querySelector("#fExp");
+    if (exp) exp.onclick = () => exportarCliente(c).catch(e => U.toast(e.message));
     el.querySelector("#fOk").onclick = () => {
       const n = el.querySelector("#fN").value.trim(), cd = c ? c.ced : U.limpiaCed(el.querySelector("#fC").value), cel = U.limpiaCel(el.querySelector("#fT").value);
       const err = t => el.querySelector("#fE").textContent = t;
@@ -114,15 +123,40 @@ function ficha(ced){
       if (!c && S.clients[cd]) return err("Ya existe un cliente con esa cédula: " + S.clients[cd].n);
       if (!c && /^\d{10}$/.test(cd) && !U.cedulaValida(cd) && el.querySelector("#fE").dataset.ok !== cd) { el.querySelector("#fE").dataset.ok = cd; return err("La cédula no parece válida. Revisa o toca Guardar otra vez para registrarla así."); }
       if (cel && !/^0\d{9}$/.test(cel)) return err("El celular debe tener 10 dígitos, ej. 0991234567.");
-      api.doc("clients/" + cd).set({ced: cd, n, cel, alta: (c && c.alta) || Date.now(), por: (c && c.por) || ctx.nombre}, {merge: true}).catch(er => U.toast(er.message));
+      api.doc("clients/" + cd).set({ced: cd, n, cel, alta: (c && c.alta) || Date.now(), por: (c && c.por) || ctx.nombre, ...U.consentimiento(el.querySelector("#fP").checked, c)}, {merge: true}).catch(er => U.toast(er.message));
       close(); U.toast(c ? "Cliente actualizado" : "Cliente registrado");
     };
   }, true);
 }
+// Derecho de supresión: borra la ficha y quita nombre y cédula de ventas y cuentas pasadas
+// (los montos se conservan para la contabilidad).
+async function eliminarCliente(c){
+  let n = 0;
+  const ventas = await api.collection("sales").get();
+  for (const d of ventas.docs) {
+    const v = d.data(); let cambio = false;
+    const sales = (v.sales || []).map(x => { if (!x.cli || x.cli.ced !== c.ced) return x; cambio = true; n++; return {...x, cli: null, mesa: x.mesa === c.n ? "" : (x.mesa || "")}; });
+    if (cambio) await d.ref.update({sales});
+  }
+  const cuentas = await api.collection("orders").where("cli.ced", "==", c.ced).get();
+  for (const d of cuentas.docs) await d.ref.update({cli: null, ...(d.data().mesa === c.n ? {mesa: ""} : {})});
+  await api.doc("clients/" + c.ced).delete();
+  U.auditar(api, ctx, "cliente-eliminado", {ventas: n});
+  return n;
+}
+// Derecho de acceso y portabilidad: CSV con la ficha y todas sus compras.
+async function exportarCliente(c){
+  const ventas = U.ventasDe((await api.collection("sales").get()).docs).filter(v => v.cli && v.cli.ced === c.ced).sort((a, b) => a.ts - b.ts);
+  const rows = [["dato", "valor"], ["cedula", c.ced], ["nombre", c.n], ["celular", c.cel || ""], ["registrado", c.alta ? U.dkey(c.alta) : ""], ["acepta_promociones", c.promo ? "si" : "no"], [], ["fecha", "hora", "total", "forma_pago", "productos"]];
+  ventas.forEach(v => rows.push([v._date, U.hhmm(v.ts), U.r2(v.total).toFixed(2), v.pago || "", (v.items || []).map(i => i.q + "x " + i.n).join(" | ")]));
+  const csv = "\ufeff" + rows.map(r => r.map(x => /[",;\n]/.test(String(x)) ? '"' + String(x).replace(/"/g, '""') + '"' : x).join(",")).join("\n");
+  const d = await App.use("downloads"); d.save({filename: "datos-cliente-" + c.ced + ".csv", data: csv});
+  U.auditar(api, ctx, "cliente-exportado", {compras: ventas.length});
+}
 $("#btnCsv").onclick = async () => {
   const st = stats(); const ms = meses12();
-  const rows = [["cedula", "nombre", "celular", "registrado", "visitas_12m", "gastado_12m", "ultima_visita", ...ms.map(m => "gasto_" + m)]];
-  Object.values(S.clients).forEach(c => { const s = st[c.ced] || {vis: 0, tot: 0, ult: "", mes: {}}; rows.push([c.ced, c.n, c.cel || "", c.alta ? U.dkey(c.alta) : "", s.vis, s.tot.toFixed(2), s.ult, ...ms.map(m => s.mes[m] ? s.mes[m].tot.toFixed(2) : "0")]); });
+  const rows = [["cedula", "nombre", "celular", "acepta_promociones", "registrado", "visitas_12m", "gastado_12m", "ultima_visita", ...ms.map(m => "gasto_" + m)]];
+  Object.values(S.clients).forEach(c => { const s = st[c.ced] || {vis: 0, tot: 0, ult: "", mes: {}}; rows.push([c.ced, c.n, c.cel || "", c.promo ? "si" : "no", c.alta ? U.dkey(c.alta) : "", s.vis, s.tot.toFixed(2), s.ult, ...ms.map(m => s.mes[m] ? s.mes[m].tot.toFixed(2) : "0")]); });
   const csv = "﻿" + rows.map(r => r.map(v => /[",;\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v).join(",")).join("\n");
   const d = await App.use("downloads"); d.save({filename: "clientes-" + S.mes + ".csv", data: csv});
 };
